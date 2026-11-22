@@ -14,7 +14,7 @@
             <a href="#" onclick="startTest(); return false;" class="menu-item">Начать тест</a>
             <a href="#" id="admin-link" style="display:none;" onclick="openEditor(); return false;" class="menu-item">Редактор JSON</a>
             <a href="#" id="accounts-link" style="display:none;" onclick="openAccountsManager(); return false;" class="menu-item">Управление аккаунтами</a>
-			<a href="#" id="tasks-link" style="display:none;" onclick="openTasksManager(); return false;" class="menu-item">Новое задание</a>
+			<a href="#" onclick="openTasksList(); return false;" class="menu-item">Все задания</a>
 
             <div id="auth-section" style="margin-top:auto; padding-top:20px; border-top:1px solid #ddd;">
                 <input type="text" id="login-input" placeholder="Логин" class="text-input">
@@ -93,6 +93,47 @@
 				<p id="task-status"></p>
 				<button onclick="goHome()" class="btn-nav">Отмена</button>
 			</div>
+			
+			<div id="tasks-page" class="page">
+    <h3>Список всех вопросов</h3>
+    
+    <!-- Кнопка добавления (скрыта по умолчанию, показывается админу в JS) -->
+    <button id="btn-add-question" style="display:none;" onclick="toggleAddForm()" class="btn-primary">+ Добавить новый вопрос</button>
+    
+    <hr>
+    
+    <!-- Форма добавления (скрыта изначально) -->
+    <div id="add-form-container" style="display:none; background:#f9f9f9; padding:15px; border:1px solid #ddd; margin-bottom:20px;">
+        <h4>Новый вопрос</h4>
+        <label>Тема (категория):</label>
+        <input type="text" id="task-category" placeholder="Например: Ткани" class="text-input">
+        
+        <label>Тип вопроса:</label>
+        <select id="task-type" onchange="toggleTaskFields()" class="text-input">
+            <option value="multiple_choice">Выбор из вариантов</option>
+            <option value="text_input">Ввод ответа вручную</option>
+            <option value="table_fill">Заполнение таблицы</option>
+        </select>
+        
+        <label>Текст вопроса:</label>
+        <textarea id="task-text" class="text-input" rows="3" placeholder="Сформулируйте вопрос..."></textarea>
+        
+        <label>Баллы:</label>
+        <input type="number" id="task-points" value="1" min="1" class="text-input" style="width:80px;">
+        
+        <hr>
+        <div id="dynamic-fields-container"></div>
+        <br>
+        <button onclick="saveNewQuestion()" class="btn-primary">Сохранить вопрос</button>
+        <button onclick="toggleAddForm()" class="btn-nav">Отмена</button>
+        <p id="task-status"></p>
+    </div>
+
+    <!-- Контейнер для вывода списка вопросов -->
+    <div id="tasks-list-container">
+        <p>Загрузка...</p>
+    </div>
+</div>
 					</main>
 				</div>
 
