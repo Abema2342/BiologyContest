@@ -99,6 +99,11 @@ function updateUIForLoggedInUser() {
         if (adminLink) adminLink.style.display = "none";
         if (accountsLink) accountsLink.style.display = "none";
     }
+	   // Внутри updateUIForLoggedInUser, в блоке if (isAdmin):
+   const tasksLink = document.getElementById('tasks-link');
+   if (tasksLink) tasksLink.style.display = 'block';
+   // В блоке else:
+   if (tasksLink) tasksLink.style.display = 'none';
 }
 
 // === НАВИГАЦИЯ ПО СТРАНИЦАМ ===
