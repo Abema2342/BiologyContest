@@ -1,5 +1,5 @@
 // === КОНСТАНТЫ ===
-// ВАЖНО: без слэша на конце, иначе склейка даёт //api/... и воркер вернёт Unknown route
+// ВАЖНО: без слэша на конце! Иначе будет //api/... и ошибка Unknown route
 const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev";
 const ADMIN_KEY  = "abema2342";
 
@@ -9,7 +9,7 @@ let currentUser = null;
 let currentQIndex = 0;
 let userAnswers = {};
 
-// === ТРАНСПОРТ ДО WORKER ===
+// === ТРАНСПОРТ ДО WORKER (все данные идут только сюда) ===
 async function apiGet(route) {
     const r = await fetch(`${WORKER_URL}/api/${route}`);
     if (!r.ok) throw new Error(`GET ${route}: ${r.status} ${await r.text()}`);
@@ -19,7 +19,10 @@ async function apiGet(route) {
 async function apiPut(route, contentStr) {
     const r = await fetch(`${WORKER_URL}/api/${route}`, {
         method: "PUT",
-        headers: { "X-Admin-Key": ADMIN_KEY, "Content-Type": "text/plain;charset=UTF-8" },
+        headers: { 
+            "X-Admin-Key": ADMIN_KEY, 
+            "Content-Type": "text/plain;charset=UTF-8" 
+        },
         body: contentStr
     });
     const txt = await r.text();
@@ -30,6 +33,7 @@ async function apiPut(route, contentStr) {
 // === ЗАГРУЗКА ДАННЫХ ===
 async function loadData() {
     try {
+        // Читаем вопросы через Worker, а не напрямую из файла
         const data = JSON.parse(await apiGet("questions"));
         questions = data.categories.flatMap(c => c.questions);
         console.log(`Загружено ${questions.length} вопросов`);
@@ -43,16 +47,20 @@ async function loadData() {
 async function performLogin() {
     const l = document.getElementById("login-input").value.trim();
     const p = document.getElementById("pass-input").value.trim();
+    
     if (!l || !p) {
         alert("Введите логин и пароль");
         return;
     }
+    
     try {
+        // Читаем пользователей через Worker
         const users = JSON.parse(await apiGet("users"));
         const user = users.find(u => u.login === l && u.password === p);
+        
         if (user) {
             currentUser = user;
-            localStorage.setItem("biology_user", JSON.stringify(user));
+            localStorage.setItem("biology_user", JSON.stringify(user)); // Сохраняем сессию
             updateUIForLoggedInUser();
             showPage("home");
         } else {
@@ -81,6 +89,7 @@ function updateUIForLoggedInUser() {
         if (authSection) authSection.style.display = "none";
         if (userInfo) userInfo.style.display = "block";
         if (nameSpan) nameSpan.innerText = currentUser.name;
+        
         const isAdmin = currentUser.role === "admin";
         if (adminLink) adminLink.style.display = isAdmin ? "block" : "none";
         if (accountsLink) accountsLink.style.display = isAdmin ? "block" : "none";
@@ -218,6 +227,7 @@ function openEditor() {
 async function saveToGithub() {
     const content = document.getElementById("editor-area").value;
     const statusEl = document.getElementById("save-status");
+    
     try {
         JSON.parse(content);
     } catch {
@@ -225,6 +235,7 @@ async function saveToGithub() {
         statusEl.style.color = "red";
         return;
     }
+    
     try {
         await apiPut("questions", content);
         statusEl.innerText = "Сохранено";
@@ -271,11 +282,6 @@ async function openAccountsManager() {
     document.getElementById("accounts-container").innerHTML = html;
 }
 
-async function saveUsersToGithub(usersArray) {
-    // Бросает исключение при ошибке; вызывающие ловят и показывают статус
-    await apiPut("users", JSON.stringify(usersArray, null, 2));
-}
-
 async function addAndSaveAccount() {
     const login = document.getElementById("new-login").value.trim();
     const pass = document.getElementById("new-pass").value.trim();
@@ -307,10 +313,10 @@ async function addAndSaveAccount() {
     users.push({ login, password: pass, name, role });
 
     try {
-        await saveUsersToGithub(users);
+        await apiPut("users", JSON.stringify(users, null, 2));
         statusEl.innerText = "Добавлено и сохранено";
         statusEl.style.color = "green";
-        openAccountsManager();
+        openAccountsManager(); // Перерисовываем список
     } catch (e) {
         statusEl.innerText = "Ошибка сохранения: " + e.message;
         statusEl.style.color = "red";
@@ -331,8 +337,8 @@ async function deleteAccount(index) {
     users.splice(index, 1);
 
     try {
-        await saveUsersToGithub(users);
-        openAccountsManager();
+        await apiPut("users", JSON.stringify(users, null, 2));
+        openAccountsManager(); // Перерисовываем список
     } catch (e) {
         alert("Ошибка сохранения: " + e.message);
     }
@@ -340,7 +346,8 @@ async function deleteAccount(index) {
 
 // === ИНИЦИАЛИЗАЦИЯ ===
 window.onload = async () => {
-    await loadData();
+    await loadData(); // Сначала грузим вопросы
+    
     const savedUser = localStorage.getItem("biology_user");
     if (savedUser) {
         try {
@@ -350,5 +357,6 @@ window.onload = async () => {
             localStorage.removeItem("biology_user");
         }
     }
-    updateUIForLoggedInUser();
+    
+    updateUIForLoggedInUser(); // Обновляем интерфейс под текущего пользователя
 };
