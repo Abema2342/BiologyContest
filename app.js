@@ -1,7 +1,7 @@
 // === КОНСТАНТЫ ===
 // ВАЖНО: без слэша на конце! Иначе будет //api/... и ошибка Unknown route
-const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev";
-const ADMIN_KEY  = "abema2342";
+const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev"; 
+const ADMIN_KEY  = "abema2342"; 
 
 // === ГЛОБАЛЬНОЕ СОСТОЯНИЕ ===
 let questions = [];
@@ -33,7 +33,7 @@ async function apiPut(route, contentStr) {
 // === ЗАГРУЗКА ДАННЫХ ===
 async function loadData() {
     try {
-        // Читаем вопросы через Worker, а не напрямую из файла
+        // Читаем вопросы через Worker
         const data = JSON.parse(await apiGet("questions"));
         questions = data.categories.flatMap(c => c.questions);
         console.log(`Загружено ${questions.length} вопросов`);
@@ -79,30 +79,30 @@ function logout() {
 
 // === ОБНОВЛЕНИЕ UI ПОД ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ===
 function updateUIForLoggedInUser() {
-    const authSection = document.getElementById('auth-section');
-    const userInfo = document.getElementById('user-info');
-    const nameSpan = document.getElementById('username-display');
-    const adminLink = document.getElementById('admin-link');
-    const accountsLink = document.getElementById('accounts-link');
-    const tasksLink = document.getElementById('tasks-link'); // Новая переменная
+    const authSection = document.getElementById("auth-section");
+    const userInfo = document.getElementById("user-info");
+    const nameSpan = document.getElementById("username-display");
+    const adminLink = document.getElementById("admin-link");
+    const accountsLink = document.getElementById("accounts-link");
+    const tasksLink = document.getElementById("tasks-link"); // Новая переменная
 
     if (currentUser) {
-        if (authSection) authSection.style.display = 'none';
-        if (userInfo) userInfo.style.display = 'block';
+        if (authSection) authSection.style.display = "none";
+        if (userInfo) userInfo.style.display = "block";
         if (nameSpan) nameSpan.innerText = currentUser.name;
         
-        const isAdmin = currentUser.role === 'admin';
+        const isAdmin = currentUser.role === "admin";
         
-        if (adminLink) adminLink.style.display = isAdmin ? 'block' : 'none';
-        if (accountsLink) accountsLink.style.display = isAdmin ? 'block' : 'none';
-        if (tasksLink) tasksLink.style.display = isAdmin ? 'block' : 'none'; // Показываем новую кнопку
+        if (adminLink) adminLink.style.display = isAdmin ? "block" : "none";
+        if (accountsLink) accountsLink.style.display = isAdmin ? "block" : "none";
+        if (tasksLink) tasksLink.style.display = isAdmin ? "block" : "none"; // Показываем новую кнопку
         
     } else {
-        if (authSection) authSection.style.display = 'block';
-        if (userInfo) userInfo.style.display = 'none';
-        if (adminLink) adminLink.style.display = 'none';
-        if (accountsLink) accountsLink.style.display = 'none';
-        if (tasksLink) tasksLink.style.display = 'none'; // Скрываем при выходе
+        if (authSection) authSection.style.display = "block";
+        if (userInfo) userInfo.style.display = "none";
+        if (adminLink) adminLink.style.display = "none";
+        if (accountsLink) accountsLink.style.display = "none";
+        if (tasksLink) tasksLink.style.display = "none"; // Скрываем при выходе
     }
 }
 
@@ -172,399 +172,6 @@ function saveAnswer(qId, val) {
 function saveTableAnswer(qId, key, val) {
     if (!userAnswers[qId]) userAnswers[qId] = {};
     userAnswers[qId][key] = val;
-}
-
-// === ЛОГИКА НОВЫХ ЗАДАНИЙ ===
-
-function openTasksManager() {
-    showPage('tasks-page');
-    toggleTaskFields(); // Инициализируем поля по умолчанию
-}
-
-function toggleTaskFields() {
-    const type = document.getElementById('task-type').value;
-    const container = document.getElementById('dynamic-fields-container');
-    let html = '';
-
-    if (type === 'multiple_choice') {
-        html = `
-            <h4>Варианты ответов</h4>
-            <div id="mc-options-list">
-                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 1"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
-                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 2"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
-            </div>
-            <button onclick="addMcOption()" class="btn-nav">+ Добавить вариант</button>
-            <br><br>
-            <label>Индекс правильного ответа (начинается с 0):</label>
-            <input type="number" id="mc-correct-index" value="0" min="0" class="text-input" style="width:80px;">
-        `;
-    } 
-    else if (type === 'text_input') {
-        html = `
-            <h4>Проверка ответа</h4>
-            <label>Разрешённые ответы (через запятую):</label>
-            <input type="text" id="ti-accepted" placeholder="ответ1, ответ2" class="text-input">
-            <small style="color:#666;">Регистр игнорируется.</small>
-        `;
-    } 
-    else if (type === 'table_fill') {
-        html = `
-            <h4>Структура таблицы</h4>
-            <label>Заголовки колонок (через запятую):</label>
-            <input type="text" id="tf-headers" placeholder="Колонка 1, Колонка 2" class="text-input">
-            
-            <div id="tf-rows-list">
-                <!-- Строки добавляются кнопкой -->
-            </div>
-            <button onclick="addTfRow()" class="btn-nav">+ Добавить строку данных</button>
-        `;
-    }
-
-    container.innerHTML = html;
-}
-
-function addMcOption() {
-    const list = document.getElementById('mc-options-list');
-    const count = list.children.length + 1;
-    const div = document.createElement('div');
-    div.className = 'mc-option-row';
-    div.innerHTML = `<input type="text" class="text-input mc-opt-val" placeholder="Вариант ${count}"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button>`;
-    list.appendChild(div);
-}
-
-function addTfRow() {
-    const list = document.getElementById('tf-rows-list');
-    const idx = list.children.length;
-    const div = document.createElement('div');
-    div.style.marginBottom = '10px';
-    div.style.border = '1px solid #eee';
-    div.style.padding = '5px';
-    div.innerHTML = `
-        <strong>Строка ${idx + 1}</strong><br>
-        <label>Метка (видимая часть):</label>
-        <input type="text" class="text-input tf-label" placeholder="Напр.: Мышечная ткань">
-        <label>Правильное значение (для проверки):</label>
-        <input type="text" class="text-input tf-value" placeholder="Напр.: Сокращение">
-        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button>
-        <div style="clear:both;"></div>
-    `;
-    list.appendChild(div);
-}
-
-async function saveNewQuestion() {
-    const category = document.getElementById('task-category').value.trim();
-    const type = document.getElementById('task-type').value;
-    const text = document.getElementById('task-text').value.trim();
-    const points = parseInt(document.getElementById('task-points').value) || 1;
-    const statusEl = document.getElementById('task-status');
-
-    if (!category || !text) {
-        statusEl.innerText = "Ошибка: заполните тему и текст";
-        statusEl.style.color = "red";
-        return;
-    }
-
-    let questionObj = {
-        id: Date.now(),
-        type: type,
-        text: text,
-        points: points
-    };
-
-    try {
-        // Формируем данные специфичные для типа
-        if (type === 'multiple_choice') {
-            const opts = Array.from(document.querySelectorAll('.mc-opt-val')).map(i => i.value.trim()).filter(v => v);
-            const correctIdx = parseInt(document.getElementById('mc-correct-index').value);
-            
-            if (opts.length < 2) throw new Error("Нужно минимум 2 варианта");
-            if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= opts.length) throw new Error(`Неверный индекс (от 0 до ${opts.length - 1})`);
-            
-            questionObj.options = opts;
-            questionObj.correct_index = correctIdx;
-        } 
-        else if (type === 'text_input') {
-            const accStr = document.getElementById('ti-accepted').value.trim();
-            if (!accStr) throw new Error("Укажите правильный ответ");
-            questionObj.accepted_answers = accStr.split(',').map(s => s.trim().toLowerCase());
-        } 
-        else if (type === 'table_fill') {
-            const headersStr = document.getElementById('tf-headers').value.trim();
-            if (!headersStr) throw new Error("Укажите заголовки");
-            questionObj.headers = headersStr.split(',').map(h => h.trim());
-            
-            const rowEls = document.querySelectorAll('#tf-rows-list > div');
-            if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
-
-            questionObj.rows = [];
-            rowEls.forEach(el => {
-                const label = el.querySelector('.tf-label').value.trim();
-                const val = el.querySelector('.tf-value').value.trim();
-                if (label && val) {
-                    questionObj.rows.push({
-                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                        label: label,
-                        correct_value: val
-                    });
-                }
-            });
-        }
-
-        // Загружаем текущий JSON вопросов через Worker
-        const currentJsonStr = await apiGet('questions');
-        const data = JSON.parse(currentJsonStr);
-
-        // Находим или создаем категорию
-        let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
-        if (!cat) {
-            cat = {
-                id: category.toLowerCase().replace(/\s+/g, '_'),
-                name: category,
-                questions: []
-            };
-            data.categories.push(cat);
-        }
-
-        // Добавляем вопрос
-        cat.questions.push(questionObj);
-
-        // Сохраняем обратно
-        await apiPut('questions', JSON.stringify(data, null, 2));
-
-        statusEl.innerText = "Вопрос успешно добавлен!";
-        statusEl.style.color = "green";
-        
-        // Очищаем форму
-        document.getElementById('task-text').value = "";
-        document.getElementById('dynamic-fields-container').innerHTML = "";
-        toggleTaskFields(); 
-
-    } catch (e) {
-        console.error(e);
-        statusEl.innerText = "Ошибка: " + e.message;
-        statusEl.style.color = "red";
-    }
-}
-
-// === ОТКРЫТИЕ СПИСКА ЗАДАНИЙ ===
-async function openTasksList() {
-    showPage('tasks-page');
-    
-    // Показываем кнопку "Добавить", если пользователь админ
-    const btnAdd = document.getElementById('btn-add-question');
-    if (currentUser && currentUser.role === 'admin') {
-        if (btnAdd) btnAdd.style.display = 'inline-block';
-    } else {
-        if (btnAdd) btnAdd.style.display = 'none';
-    }
-    
-    // Скрываем форму при открытии страницы
-    const formContainer = document.getElementById('add-form-container');
-    if (formContainer) formContainer.style.display = 'none';
-
-    loadAndRenderTasks();
-}
-
-// Загрузка данных и вывод списка
-async function loadAndRenderTasks() {
-    const container = document.getElementById('tasks-list-container');
-    try {
-        // Читаем вопросы через Worker
-        const dataStr = await apiGet('questions');
-        const data = JSON.parse(dataStr);
-        
-        let html = '';
-        
-        if (!data.categories || data.categories.length === 0) {
-            html = '<p>Пока нет ни одного вопроса.</p>';
-        } else {
-            data.categories.forEach(cat => {
-                html += `<h4 style="color:#0056b3; margin-top:20px;">${cat.name}</h4>`;
-                html += '<ul style="list-style:none; padding-left:0;">';
-                
-                cat.questions.forEach(q => {
-                    let typeName = "";
-                    if (q.type === 'multiple_choice') typeName = "[Выбор]";
-                    else if (q.type === 'text_input') typeName = "[Текст]";
-                    else if (q.type === 'table_fill') typeName = "[Таблица]";
-                    
-                    html += `<li style="padding:8px; border-bottom:1px solid #eee;">
-                                <strong>${typeName}</strong> ${q.text} 
-                                <span style="float:right; color:#777; font-size:12px;">(${q.points} балл)</span>
-                             </li>`;
-                });
-                html += '</ul>';
-            });
-        }
-        
-        container.innerHTML = html;
-    } catch (e) {
-        console.error(e);
-        container.innerHTML = `<p style="color:red;">Ошибка загрузки списка: ${e.message}</p>`;
-    }
-}
-
-// Показать/скрыть форму добавления
-function toggleAddForm() {
-    const form = document.getElementById('add-form-container');
-    if (form.style.display === 'none') {
-        form.style.display = 'block';
-        toggleTaskFields(); // Инициализируем поля формы
-    } else {
-        form.style.display = 'none';
-    }
-}
-
-// --- НИЖЕ КОПИРУЕМ ЛОГИКУ СОЗДАНИЯ ВОПРОСА ИЗ ПРЕДЫДУЩЕЙ ИНСТРУКЦИИ ---
-// Эти функции уже были написаны ранее, просто убедись, что они есть в файле.
-// Если их нет — скопируй блок с toggleTaskFields, addMcOption, addTfRow, saveNewQuestion
-// из моего предыдущего сообщения.
-
-function toggleTaskFields() {
-    const type = document.getElementById('task-type').value;
-    const container = document.getElementById('dynamic-fields-container');
-    let html = '';
-
-    if (type === 'multiple_choice') {
-        html = `
-            <h4>Варианты ответов</h4>
-            <div id="mc-options-list">
-                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 1"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
-                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 2"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
-            </div>
-            <button onclick="addMcOption()" class="btn-nav">+ Добавить вариант</button>
-            <br><br>
-            <label>Индекс правильного ответа (начинается с 0):</label>
-            <input type="number" id="mc-correct-index" value="0" min="0" class="text-input" style="width:80px;">
-        `;
-    } 
-    else if (type === 'text_input') {
-        html = `
-            <h4>Проверка ответа</h4>
-            <label>Разрешённые ответы (через запятую):</label>
-            <input type="text" id="ti-accepted" placeholder="ответ1, ответ2" class="text-input">
-        `;
-    } 
-    else if (type === 'table_fill') {
-        html = `
-            <h4>Структура таблицы</h4>
-            <label>Заголовки колонок (через запятую):</label>
-            <input type="text" id="tf-headers" placeholder="Колонка 1, Колонка 2" class="text-input">
-            <div id="tf-rows-list"></div>
-            <button onclick="addTfRow()" class="btn-nav">+ Добавить строку данных</button>
-        `;
-    }
-    container.innerHTML = html;
-}
-
-function addMcOption() {
-    const list = document.getElementById('mc-options-list');
-    const count = list.children.length + 1;
-    const div = document.createElement('div');
-    div.className = 'mc-option-row';
-    div.innerHTML = `<input type="text" class="text-input mc-opt-val" placeholder="Вариант ${count}"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button>`;
-    list.appendChild(div);
-}
-
-function addTfRow() {
-    const list = document.getElementById('tf-rows-list');
-    const idx = list.children.length;
-    const div = document.createElement('div');
-    div.style.marginBottom = '10px';
-    div.style.border = '1px solid #eee';
-    div.style.padding = '5px';
-    div.innerHTML = `
-        <strong>Строка ${idx + 1}</strong><br>
-        <label>Метка:</label>
-        <input type="text" class="text-input tf-label" placeholder="Напр.: Мышечная ткань">
-        <label>Правильное значение:</label>
-        <input type="text" class="text-input tf-value" placeholder="Напр.: Сокращение">
-        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button>
-        <div style="clear:both;"></div>
-    `;
-    list.appendChild(div);
-}
-
-async function saveNewQuestion() {
-    const category = document.getElementById('task-category').value.trim();
-    const type = document.getElementById('task-type').value;
-    const text = document.getElementById('task-text').value.trim();
-    const points = parseInt(document.getElementById('task-points').value) || 1;
-    const statusEl = document.getElementById('task-status');
-
-    if (!category || !text) {
-        statusEl.innerText = "Ошибка: заполните тему и текст";
-        statusEl.style.color = "red";
-        return;
-    }
-
-    let questionObj = { id: Date.now(), type: type, text: text, points: points };
-
-    try {
-        if (type === 'multiple_choice') {
-            const opts = Array.from(document.querySelectorAll('.mc-opt-val')).map(i => i.value.trim()).filter(v => v);
-            const correctIdx = parseInt(document.getElementById('mc-correct-index').value);
-            if (opts.length < 2) throw new Error("Нужно минимум 2 варианта");
-            if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= opts.length) throw new Error(`Неверный индекс (от 0 до ${opts.length - 1})`);
-            questionObj.options = opts;
-            questionObj.correct_index = correctIdx;
-        } 
-        else if (type === 'text_input') {
-            const accStr = document.getElementById('ti-accepted').value.trim();
-            if (!accStr) throw new Error("Укажите правильный ответ");
-            questionObj.accepted_answers = accStr.split(',').map(s => s.trim().toLowerCase());
-        } 
-        else if (type === 'table_fill') {
-            const headersStr = document.getElementById('tf-headers').value.trim();
-            if (!headersStr) throw new Error("Укажите заголовки");
-            questionObj.headers = headersStr.split(',').map(h => h.trim());
-            
-            const rowEls = document.querySelectorAll('#tf-rows-list > div');
-            if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
-
-            questionObj.rows = [];
-            rowEls.forEach(el => {
-                const label = el.querySelector('.tf-label').value.trim();
-                const val = el.querySelector('.tf-value').value.trim();
-                if (label && val) {
-                    questionObj.rows.push({
-                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                        label: label,
-                        correct_value: val
-                    });
-                }
-            });
-        }
-
-        // Загружаем текущий JSON
-        const currentJsonStr = await apiGet('questions');
-        const data = JSON.parse(currentJsonStr);
-
-        // Находим или создаем категорию
-        let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
-        if (!cat) {
-            cat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
-            data.categories.push(cat);
-        }
-
-        cat.questions.push(questionObj);
-
-        // Сохраняем обратно
-        await apiPut('questions', JSON.stringify(data, null, 2));
-
-        statusEl.innerText = "Вопрос успешно добавлен!";
-        statusEl.style.color = "green";
-        
-        setTimeout(() => {
-            toggleAddForm(); // Закрываем форму
-            loadAndRenderTasks(); // Обновляем список
-        }, 1000);
-
-    } catch (e) {
-        console.error(e);
-        statusEl.innerText = "Ошибка: " + e.message;
-        statusEl.style.color = "red";
-    }
 }
 
 function nextQ() {
@@ -742,13 +349,73 @@ async function deleteAccount(index) {
     }
 }
 
-// === ОТКРЫТИЕ ВКЛАДКИ ЗАДАНИЙ ===
-function openTasksManager() {
+// === ВКЛАДКА ЗАДАНИЯ (СПИСОК И ДОБАВЛЕНИЕ) ===
+async function openTasksList() {
     showPage('tasks-page');
-    toggleTaskFields(); // Инициализируем динамические поля при открытии
+    
+    // Показываем кнопку "Добавить", если пользователь админ
+    const btnAdd = document.getElementById('btn-add-question');
+    if (currentUser && currentUser.role === 'admin') {
+        if (btnAdd) btnAdd.style.display = 'inline-block';
+    } else {
+        if (btnAdd) btnAdd.style.display = 'none';
+    }
+    
+    // Скрываем форму при открытии страницы
+    const formContainer = document.getElementById('add-form-container');
+    if (formContainer) formContainer.style.display = 'none';
+
+    loadAndRenderTasks();
 }
 
-// === ПЕРЕКЛЮЧЕНИЕ ПОЛЕЙ В ЗАВИСИМОСТИ ОТ ТИПА ===
+async function loadAndRenderTasks() {
+    const container = document.getElementById('tasks-list-container');
+    try {
+        // Читаем вопросы через Worker
+        const dataStr = await apiGet('questions');
+        const data = JSON.parse(dataStr);
+        
+        let html = '';
+        
+        if (!data.categories || data.categories.length === 0) {
+            html = '<p>Пока нет ни одного вопроса.</p>';
+        } else {
+            data.categories.forEach(cat => {
+                html += `<h4 style="color:#0056b3; margin-top:20px;">${cat.name}</h4>`;
+                html += '<ul style="list-style:none; padding-left:0;">';
+                
+                cat.questions.forEach(q => {
+                    let typeName = "";
+                    if (q.type === 'multiple_choice') typeName = "[Выбор]";
+                    else if (q.type === 'text_input') typeName = "[Текст]";
+                    else if (q.type === 'table_fill') typeName = "[Таблица]";
+                    
+                    html += `<li style="padding:8px; border-bottom:1px solid #eee;">
+                                <strong>${typeName}</strong> ${q.text} 
+                                <span style="float:right; color:#777; font-size:12px;">(${q.points} балл)</span>
+                             </li>`;
+                });
+                html += '</ul>';
+            });
+        }
+        
+        container.innerHTML = html;
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = `<p style="color:red;">Ошибка загрузки списка: ${e.message}</p>`;
+    }
+}
+
+function toggleAddForm() {
+    const form = document.getElementById('add-form-container');
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+        toggleTaskFields(); // Инициализируем поля формы
+    } else {
+        form.style.display = 'none';
+    }
+}
+
 function toggleTaskFields() {
     const type = document.getElementById('task-type').value;
     const container = document.getElementById('dynamic-fields-container');
@@ -758,54 +425,43 @@ function toggleTaskFields() {
         html = `
             <h4>Варианты ответов</h4>
             <div id="mc-options-list">
-                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 1"><button onclick="removeMcOption(this)" class="btn-nav" style="color:red;">-</button></div>
-                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 2"><button onclick="removeMcOption(this)" class="btn-nav" style="color:red;">-</button></div>
+                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 1"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
+                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 2"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
             </div>
             <button onclick="addMcOption()" class="btn-nav">+ Добавить вариант</button>
             <br><br>
-            <label>Правильный ответ (номер варианта, начиная с 0):</label>
+            <label>Индекс правильного ответа (начинается с 0):</label>
             <input type="number" id="mc-correct-index" value="0" min="0" class="text-input" style="width:80px;">
         `;
     } 
     else if (type === 'text_input') {
         html = `
             <h4>Проверка ответа</h4>
-            <label>Разрешённые варианты правильного ответа (через запятую):</label>
-            <input type="text" id="ti-accepted" placeholder="ответ1, ответ2, Ответ1" class="text-input">
-            <small style="color:#666;">Регистр игнорируется при проверке.</small>
+            <label>Разрешённые ответы (через запятую):</label>
+            <input type="text" id="ti-accepted" placeholder="ответ1, ответ2" class="text-input">
         `;
     } 
     else if (type === 'table_fill') {
         html = `
             <h4>Структура таблицы</h4>
             <label>Заголовки колонок (через запятую):</label>
-            <input type="text" id="tf-headers" placeholder="Столбец 1, Столбец 2" class="text-input">
-            
-            <div id="tf-rows-list">
-                <!-- Строки добавляются кнопкой ниже -->
-            </div>
+            <input type="text" id="tf-headers" placeholder="Колонка 1, Колонка 2" class="text-input">
+            <div id="tf-rows-list"></div>
             <button onclick="addTfRow()" class="btn-nav">+ Добавить строку данных</button>
         `;
     }
-
     container.innerHTML = html;
 }
 
-// --- Хелперы для Multiple Choice ---
 function addMcOption() {
     const list = document.getElementById('mc-options-list');
     const count = list.children.length + 1;
     const div = document.createElement('div');
     div.className = 'mc-option-row';
-    div.innerHTML = `<input type="text" class="text-input mc-opt-val" placeholder="Вариант ${count}"><button onclick="removeMcOption(this)" class="btn-nav" style="color:red;">-</button>`;
+    div.innerHTML = `<input type="text" class="text-input mc-opt-val" placeholder="Вариант ${count}"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button>`;
     list.appendChild(div);
 }
 
-function removeMcOption(btn) {
-    btn.parentElement.remove();
-}
-
-// --- Хелперы для Table Fill ---
 function addTfRow() {
     const list = document.getElementById('tf-rows-list');
     const idx = list.children.length;
@@ -815,17 +471,16 @@ function addTfRow() {
     div.style.padding = '5px';
     div.innerHTML = `
         <strong>Строка ${idx + 1}</strong><br>
-        <label>Метка (то, что видит ученик):</label>
+        <label>Метка:</label>
         <input type="text" class="text-input tf-label" placeholder="Напр.: Мышечная ткань">
-        <label>Правильное значение (для проверки):</label>
+        <label>Правильное значение:</label>
         <input type="text" class="text-input tf-value" placeholder="Напр.: Сокращение">
-        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить строку</button>
+        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button>
         <div style="clear:both;"></div>
     `;
     list.appendChild(div);
 }
 
-// === СОХРАНЕНИЕ НОВОГО ВОПРОСА ===
 async function saveNewQuestion() {
     const category = document.getElementById('task-category').value.trim();
     const type = document.getElementById('task-type').value;
@@ -834,95 +489,72 @@ async function saveNewQuestion() {
     const statusEl = document.getElementById('task-status');
 
     if (!category || !text) {
-        statusEl.innerText = "Ошибка: заполните тему и текст вопроса";
+        statusEl.innerText = "Ошибка: заполните тему и текст";
         statusEl.style.color = "red";
         return;
     }
 
-    // Формируем объект вопроса в зависимости от типа
-    let questionObj = {
-        id: Date.now(), // Уникальный ID на основе времени
-        type: type,
-        text: text,
-        points: points
-    };
+    let questionObj = { id: Date.now(), type: type, text: text, points: points };
 
     try {
         if (type === 'multiple_choice') {
-            const optionsInputs = document.querySelectorAll('.mc-opt-val');
-            const correctIdxInput = document.getElementById('mc-correct-index');
-            
-            const options = Array.from(optionsInputs).map(inp => inp.value.trim()).filter(v => v !== "");
-            const correctIndex = parseInt(correctIdxInput.value);
-
-            if (options.length < 2) throw new Error("Нужно минимум 2 варианта ответа");
-            if (isNaN(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
-                throw new Error(`Неверный индекс правильного ответа (должен быть от 0 до ${options.length - 1})`);
-            }
-
-            questionObj.options = options;
-            questionObj.correct_index = correctIndex;
+            const opts = Array.from(document.querySelectorAll('.mc-opt-val')).map(i => i.value.trim()).filter(v => v);
+            const correctIdx = parseInt(document.getElementById('mc-correct-index').value);
+            if (opts.length < 2) throw new Error("Нужно минимум 2 варианта");
+            if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= opts.length) throw new Error(`Неверный индекс (от 0 до ${opts.length - 1})`);
+            questionObj.options = opts;
+            questionObj.correct_index = correctIdx;
         } 
         else if (type === 'text_input') {
-            const acceptedStr = document.getElementById('ti-accepted').value.trim();
-            if (!acceptedStr) throw new Error("Укажите хотя бы один правильный ответ");
-            
-            // Разбиваем по запятой, убираем пробелы, приводим к нижнему регистру для хранения эталонов
-            questionObj.accepted_answers = acceptedStr.split(',').map(s => s.trim().toLowerCase());
+            const accStr = document.getElementById('ti-accepted').value.trim();
+            if (!accStr) throw new Error("Укажите правильный ответ");
+            questionObj.accepted_answers = accStr.split(',').map(s => s.trim().toLowerCase());
         } 
         else if (type === 'table_fill') {
             const headersStr = document.getElementById('tf-headers').value.trim();
-            if (!headersStr) throw new Error("Укажите заголовки колонок");
-            
+            if (!headersStr) throw new Error("Укажите заголовки");
             questionObj.headers = headersStr.split(',').map(h => h.trim());
             
-            const rowElements = document.querySelectorAll('#tf-rows-list > div');
-            if (rowElements.length === 0) throw new Error("Добавьте хотя бы одну строку данных");
+            const rowEls = document.querySelectorAll('#tf-rows-list > div');
+            if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
 
             questionObj.rows = [];
-            rowElements.forEach(el => {
+            rowEls.forEach(el => {
                 const label = el.querySelector('.tf-label').value.trim();
-                const value = el.querySelector('.tf-value').value.trim();
-                if (label && value) {
+                const val = el.querySelector('.tf-value').value.trim();
+                if (label && val) {
                     questionObj.rows.push({
-                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, // Генерируем уникальный ключ ячейки
+                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                         label: label,
-                        correct_value: value
+                        correct_value: val
                     });
                 }
             });
-
-            if (questionObj.rows.length === 0) throw new Error("Все строки пустые или некорректные");
         }
 
-        // 1. Загружаем текущий questions.json
+        // Загружаем текущий JSON
         const currentJsonStr = await apiGet('questions');
         const data = JSON.parse(currentJsonStr);
 
-        // 2. Находим категорию или создаём новую
+        // Находим или создаем категорию
         let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
         if (!cat) {
-            cat = {
-                id: category.toLowerCase().replace(/\s+/g, '_'),
-                name: category,
-                questions: []
-            };
+            cat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
             data.categories.push(cat);
         }
 
-        // 3. Добавляем вопрос
         cat.questions.push(questionObj);
 
-        // 4. Сохраняем обратно
+        // Сохраняем обратно
         await apiPut('questions', JSON.stringify(data, null, 2));
 
         statusEl.innerText = "Вопрос успешно добавлен!";
         statusEl.style.color = "green";
         
-        // Очищаем форму частично
-        document.getElementById('task-text').value = "";
-        document.getElementById('dynamic-fields-container').innerHTML = "";
-        toggleTaskFields(); 
+        setTimeout(() => {
+            toggleAddForm(); // Закрываем форму
+            loadAndRenderTasks(); // Обновляем список
+        }, 1000);
 
     } catch (e) {
         console.error(e);
