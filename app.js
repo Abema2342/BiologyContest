@@ -366,6 +366,7 @@ async function openTasksList() {
 async function loadAndRenderTasks() {
     const container = document.getElementById('tasks-list-container');
     try {
+        // Читаем вопросы через Worker
         const dataStr = await apiGet('questions');
         const data = JSON.parse(dataStr);
         
@@ -373,20 +374,38 @@ async function loadAndRenderTasks() {
         if (!data.categories || data.categories.length === 0) {
             html = '<p>Пока нет ни одного вопроса.</p>';
         } else {
+            // Определяем, является ли текущий пользователь админом
+            const isAdmin = currentUser && currentUser.role === 'admin';
+
             data.categories.forEach(cat => {
                 html += `<h4 style="color:#0056b3; margin-top:20px;">${cat.name}</h4>`;
                 html += '<ul style="list-style:none; padding-left:0;">';
                 
-                cat.questions.forEach(q => {
+                cat.questions.forEach((q, qIndexInCat) => {
                     let typeName = "";
                     if (q.type === 'multiple_choice') typeName = "[Выбор]";
                     else if (q.type === 'text_input') typeName = "[Текст]";
                     else if (q.type === 'table_fill') typeName = "[Таблица]";
                     
-                    html += `<li style="padding:8px; border-bottom:1px solid #eee;">
-                                <strong>${typeName}</strong> ${q.text} 
-                                <span style="float:right; color:#777; font-size:12px;">(${q.points} балл)</span>
-                             </li>`;
+                    // Базовый элемент списка
+                    let liHtml = `<li style="padding:8px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">`;
+                    
+                    // Текст вопроса слева
+                    liHtml += `<div><strong>${typeName}</strong> ${q.text} 
+                                <span style="color:#777; font-size:12px; margin-left:10px;">(${q.points} балл)</span></div>`;
+                    
+                    // Кнопка удаления справа, только если админ
+                    if (isAdmin) {
+                        // Передаем индекс категории и индекс вопроса внутри нее для точного удаления
+                        liHtml += `<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" 
+                                         class="btn-nav" 
+                                         style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px;">
+                                     Удалить
+                                 </button>`;
+                    }
+                    
+                    liHtml += `</li>`;
+                    html += liHtml;
                 });
                 html += '</ul>';
             });
@@ -396,6 +415,44 @@ async function loadAndRenderTasks() {
     } catch (e) {
         console.error(e);
         container.innerHTML = `<p style="color:red;">Ошибка загрузки списка: ${e.message}</p>`;
+    }
+}
+
+async function deleteQuestion(categoryId, questionIndex) {
+    if (!confirm("Точно удалить этот вопрос? Это действие необратимо.")) return;
+
+    try {
+        // 1. Загружаем актуальные данные с сервера (чтобы избежать коллизий версий)
+        const currentJsonStr = await apiGet('questions');
+        const data = JSON.parse(currentJsonStr);
+
+        // 2. Находим нужную категорию
+        const catIndex = data.categories.findIndex(c => c.id === categoryId);
+        if (catIndex === -1) {
+            alert("Ошибка: категория не найдена.");
+            return;
+        }
+
+        const category = data.categories[catIndex];
+
+        // 3. Проверяем корректность индекса вопроса
+        if (questionIndex < 0 || questionIndex >= category.questions.length) {
+            alert("Ошибка: индекс вопроса неверен.");
+            return;
+        }
+
+        // 4. Удаляем вопрос из массива
+        category.questions.splice(questionIndex, 1);
+
+        // 5. Сохраняем обратно через Worker
+        await apiPut('questions', JSON.stringify(data, null, 2));
+
+        // 6. Обновляем список на экране
+        loadAndRenderTasks();
+        
+    } catch (e) {
+        console.error(e);
+        alert("Ошибка сохранения изменений: " + e.message);
     }
 }
 
