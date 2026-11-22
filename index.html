@@ -16,6 +16,7 @@
             
             <!-- Скрытая ссылка для админа -->
             <a href="#" id="admin-link" style="display:none;" onclick="openEditor()" class="menu-item">Редактор JSON</a>
+			<a href="#" id="accounts-link" style="display:none;" onclick="openAccountsManager()" class="menu-item">Управление аккаунтами</a>
             
             <!-- Форма входа / Профиль -->
             <div id="auth-section" style="margin-top: auto; padding-top: 20px; border-top: 1px solid #ddd;">
@@ -66,6 +67,12 @@
                 <button onclick="saveToGithub()" class="btn-primary">Сохранить в GitHub</button>
                 <p id="save-status" style="color:green;"></p>
             </div>
+			
+			<!-- НОВАЯ СТРАНИЦА АККАУНТОВ -->
+			<div id="accounts-page" class="page">
+				<div id="accounts-container"></div>
+				<button onclick="goHome()" class="btn-nav">На главную</button>
+			</div>
         </main>
     </div>
     
