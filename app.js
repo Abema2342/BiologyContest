@@ -1,7 +1,6 @@
 // === КОНСТАНТЫ ===
-// ВАЖНО: без слэша на конце! Иначе будет //api/... и ошибка Unknown route
-const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev"; 
-const ADMIN_KEY  = "abema2342"; 
+const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev"; // БЕЗ слэша на конце!
+const ADMIN_KEY  = "abema2342";
 
 // === ГЛОБАЛЬНОЕ СОСТОЯНИЕ ===
 let questions = [];
@@ -9,7 +8,7 @@ let currentUser = null;
 let currentQIndex = 0;
 let userAnswers = {};
 
-// === ТРАНСПОРТ ДО WORKER (все данные идут только сюда) ===
+// === ТРАНСПОРТ ДО WORKER ===
 async function apiGet(route) {
     const r = await fetch(`${WORKER_URL}/api/${route}`);
     if (!r.ok) throw new Error(`GET ${route}: ${r.status} ${await r.text()}`);
@@ -33,7 +32,6 @@ async function apiPut(route, contentStr) {
 // === ЗАГРУЗКА ДАННЫХ ===
 async function loadData() {
     try {
-        // Читаем вопросы через Worker
         const data = JSON.parse(await apiGet("questions"));
         questions = data.categories.flatMap(c => c.questions);
         console.log(`Загружено ${questions.length} вопросов`);
@@ -54,13 +52,12 @@ async function performLogin() {
     }
     
     try {
-        // Читаем пользователей через Worker
         const users = JSON.parse(await apiGet("users"));
         const user = users.find(u => u.login === l && u.password === p);
         
         if (user) {
             currentUser = user;
-            localStorage.setItem("biology_user", JSON.stringify(user)); // Сохраняем сессию
+            localStorage.setItem("biology_user", JSON.stringify(user));
             updateUIForLoggedInUser();
             showPage("home");
         } else {
@@ -84,7 +81,7 @@ function updateUIForLoggedInUser() {
     const nameSpan = document.getElementById("username-display");
     const adminLink = document.getElementById("admin-link");
     const accountsLink = document.getElementById("accounts-link");
-    const tasksLink = document.getElementById("tasks-link"); // Новая переменная
+    const tasksBtn = document.getElementById("btn-add-question");
 
     if (currentUser) {
         if (authSection) authSection.style.display = "none";
@@ -92,17 +89,15 @@ function updateUIForLoggedInUser() {
         if (nameSpan) nameSpan.innerText = currentUser.name;
         
         const isAdmin = currentUser.role === "admin";
-        
         if (adminLink) adminLink.style.display = isAdmin ? "block" : "none";
         if (accountsLink) accountsLink.style.display = isAdmin ? "block" : "none";
-        if (tasksLink) tasksLink.style.display = isAdmin ? "block" : "none"; // Показываем новую кнопку
-        
+        if (tasksBtn) tasksBtn.style.display = isAdmin ? "inline-block" : "none";
     } else {
         if (authSection) authSection.style.display = "block";
         if (userInfo) userInfo.style.display = "none";
         if (adminLink) adminLink.style.display = "none";
         if (accountsLink) accountsLink.style.display = "none";
-        if (tasksLink) tasksLink.style.display = "none"; // Скрываем при выходе
+        if (tasksBtn) tasksBtn.style.display = "none";
     }
 }
 
@@ -321,7 +316,7 @@ async function addAndSaveAccount() {
         await apiPut("users", JSON.stringify(users, null, 2));
         statusEl.innerText = "Добавлено и сохранено";
         statusEl.style.color = "green";
-        openAccountsManager(); // Перерисовываем список
+        openAccountsManager();
     } catch (e) {
         statusEl.innerText = "Ошибка сохранения: " + e.message;
         statusEl.style.color = "red";
@@ -343,7 +338,7 @@ async function deleteAccount(index) {
 
     try {
         await apiPut("users", JSON.stringify(users, null, 2));
-        openAccountsManager(); // Перерисовываем список
+        openAccountsManager();
     } catch (e) {
         alert("Ошибка сохранения: " + e.message);
     }
@@ -353,7 +348,7 @@ async function deleteAccount(index) {
 async function openTasksList() {
     showPage('tasks-page');
     
-    // Показываем кнопку "Добавить", если пользователь админ
+    // Проверяем права админа для кнопки добавления
     const btnAdd = document.getElementById('btn-add-question');
     if (currentUser && currentUser.role === 'admin') {
         if (btnAdd) btnAdd.style.display = 'inline-block';
@@ -371,12 +366,10 @@ async function openTasksList() {
 async function loadAndRenderTasks() {
     const container = document.getElementById('tasks-list-container');
     try {
-        // Читаем вопросы через Worker
         const dataStr = await apiGet('questions');
         const data = JSON.parse(dataStr);
         
         let html = '';
-        
         if (!data.categories || data.categories.length === 0) {
             html = '<p>Пока нет ни одного вопроса.</p>';
         } else {
@@ -410,7 +403,7 @@ function toggleAddForm() {
     const form = document.getElementById('add-form-container');
     if (form.style.display === 'none') {
         form.style.display = 'block';
-        toggleTaskFields(); // Инициализируем поля формы
+        toggleTaskFields();
     } else {
         form.style.display = 'none';
     }
@@ -532,11 +525,9 @@ async function saveNewQuestion() {
             });
         }
 
-        // Загружаем текущий JSON
         const currentJsonStr = await apiGet('questions');
         const data = JSON.parse(currentJsonStr);
 
-        // Находим или создаем категорию
         let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
         if (!cat) {
             cat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
@@ -545,15 +536,14 @@ async function saveNewQuestion() {
 
         cat.questions.push(questionObj);
 
-        // Сохраняем обратно
         await apiPut('questions', JSON.stringify(data, null, 2));
 
         statusEl.innerText = "Вопрос успешно добавлен!";
         statusEl.style.color = "green";
         
         setTimeout(() => {
-            toggleAddForm(); // Закрываем форму
-            loadAndRenderTasks(); // Обновляем список
+            toggleAddForm();
+            loadAndRenderTasks();
         }, 1000);
 
     } catch (e) {
@@ -565,7 +555,7 @@ async function saveNewQuestion() {
 
 // === ИНИЦИАЛИЗАЦИЯ ===
 window.onload = async () => {
-    await loadData(); // Сначала грузим вопросы
+    await loadData();
     
     const savedUser = localStorage.getItem("biology_user");
     if (savedUser) {
@@ -577,5 +567,5 @@ window.onload = async () => {
         }
     }
     
-    updateUIForLoggedInUser(); // Обновляем интерфейс под текущего пользователя
+    updateUIForLoggedInUser();
 };
