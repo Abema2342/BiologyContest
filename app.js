@@ -146,14 +146,28 @@ function renderQ() {
     } else if (q.type === "text_input") {
         const val = userAnswers[q.id] || "";
         html += `<input type="text" class="text-input" value="${val}" placeholder="Введите ответ..." onchange="saveAnswer(${q.id}, this.value)">`;
-    } else if (q.type === "table_fill") {
-        html += `<table class="table-fill"><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
-        q.rows.forEach(r => {
-            const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
-            html += `<tr><td>${r.label}</td><td><input class="text-input" value="${val}" onchange="saveTableAnswer(${q.id}, '${r.key}', this.value)"></td></tr>`;
-        });
-        html += "</table>";
-    }
+	else if (q.type === "table_fill") {
+		html += `<table class="table-fill"><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
+		
+		q.rows.forEach(r => {
+			// Если это подсказка (is_hint true), рисуем просто текст или disabled input
+			if (r.is_hint) {
+				html += `<tr>
+							<td>${r.label}</td>
+							<td style="background:#f0f8ff; color:#0056b3; font-weight:bold;">${r.correct_value}</td>
+						 </tr>`;
+			} 
+			// Если это задание, рисуем поле ввода
+			else {
+				const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
+				html += `<tr>
+							<td>${r.label}</td>
+							<td><input class="text-input" value="${val}" onchange="saveTableAnswer(${q.id}, '${r.key}', this.value)" placeholder="Впишите ответ..."></td>
+						 </tr>`;
+			}
+		});
+		html += "</table>";
+	}
 
     html += "</div>";
     document.getElementById("q-container").innerHTML = html;
@@ -197,17 +211,28 @@ function finishTest() {
         } else if (q.type === "text_input" && ans && q.accepted_answers &&
                    q.accepted_answers.includes(String(ans).toLowerCase().trim())) {
             score += q.points;
-        } else if (q.type === "table_fill" && ans) {
-            let correctCells = 0;
-            q.rows.forEach(r => {
-                const userVal = (ans[r.key] || "").toLowerCase().trim();
-                const correct = (r.correct_value || "").toLowerCase();
-                if (userVal && (userVal.includes(correct) || correct.includes(userVal))) {
-                    correctCells++;
-                }
-            });
-            score += Math.round((correctCells / q.rows.length) * q.points);
-        }
+		else if (q.type === "table_fill" && ans) {
+			let correctCells = 0;
+			let totalTaskCells = 0; // Считаем только те клетки, которые реально нужно было заполнить
+			
+			q.rows.forEach(r => {
+				// Пропускаем подсказки
+				if (r.is_hint) return; 
+				
+				totalTaskCells++;
+				const userVal = (ans[r.key] || "").toLowerCase().trim();
+				const correct = (r.correct_value || "").toLowerCase();
+				
+				if (userVal && (userVal.includes(correct) || correct.includes(userVal))) {
+					correctCells++;
+				}
+			});
+			
+			// Делим баллы пропорционально количеству ЗАДАНИЙ (не всех строк!)
+			if (totalTaskCells > 0) {
+				score += Math.round((correctCells / totalTaskCells) * q.points);
+			}
+		}
     });
 
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
@@ -519,12 +544,20 @@ function addTfRow() {
     div.style.marginBottom = '10px';
     div.style.border = '1px solid #eee';
     div.style.padding = '5px';
+    
+    // Добавляем чекбокс "Ячейка подсказки" (если отмечено - ученик её не видит как задание, она уже стоит)
     div.innerHTML = `
         <strong>Строка ${idx + 1}</strong><br>
-        <label>Метка:</label>
+        <label>Метка (левая колонка):</label>
         <input type="text" class="text-input tf-label" placeholder="Напр.: Мышечная ткань">
-        <label>Правильное значение:</label>
+        
+        <label>Правильный ответ (правая колонка):</label>
         <input type="text" class="text-input tf-value" placeholder="Напр.: Сокращение">
+        
+        <label style="display:block; margin-top:5px;">
+            <input type="checkbox" class="tf-is-hint"> Это подсказка (ученик увидит её сразу, вводить не надо)
+        </label>
+        
         <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button>
         <div style="clear:both;"></div>
     `;
@@ -568,18 +601,22 @@ async function saveNewQuestion() {
             const rowEls = document.querySelectorAll('#tf-rows-list > div');
             if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
 
-            questionObj.rows = [];
-            rowEls.forEach(el => {
-                const label = el.querySelector('.tf-label').value.trim();
-                const val = el.querySelector('.tf-value').value.trim();
-                if (label && val) {
-                    questionObj.rows.push({
-                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                        label: label,
-                        correct_value: val
-                    });
-                }
-            });
+			// ... внутри saveNewQuestion ...
+			questionObj.rows = [];
+			rowEls.forEach(el => {
+				const label = el.querySelector('.tf-label').value.trim();
+				const val = el.querySelector('.tf-value').value.trim();
+				const isHint = el.querySelector('.tf-is-hint').checked; // Читаем новый флаг
+				
+				if (label && val) {
+					questionObj.rows.push({
+						key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+						label: label,
+						correct_value: val,
+						is_hint: isHint // Сохраняем признак подсказки
+					});
+				}
+			});
         }
 
         const currentJsonStr = await apiGet('questions');
