@@ -344,6 +344,195 @@ async function deleteAccount(index) {
     }
 }
 
+// === ОТКРЫТИЕ ВКЛАДКИ ЗАДАНИЙ ===
+function openTasksManager() {
+    showPage('tasks-page');
+    toggleTaskFields(); // Инициализируем динамические поля при открытии
+}
+
+// === ПЕРЕКЛЮЧЕНИЕ ПОЛЕЙ В ЗАВИСИМОСТИ ОТ ТИПА ===
+function toggleTaskFields() {
+    const type = document.getElementById('task-type').value;
+    const container = document.getElementById('dynamic-fields-container');
+    let html = '';
+
+    if (type === 'multiple_choice') {
+        html = `
+            <h4>Варианты ответов</h4>
+            <div id="mc-options-list">
+                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 1"><button onclick="removeMcOption(this)" class="btn-nav" style="color:red;">-</button></div>
+                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 2"><button onclick="removeMcOption(this)" class="btn-nav" style="color:red;">-</button></div>
+            </div>
+            <button onclick="addMcOption()" class="btn-nav">+ Добавить вариант</button>
+            <br><br>
+            <label>Правильный ответ (номер варианта, начиная с 0):</label>
+            <input type="number" id="mc-correct-index" value="0" min="0" class="text-input" style="width:80px;">
+        `;
+    } 
+    else if (type === 'text_input') {
+        html = `
+            <h4>Проверка ответа</h4>
+            <label>Разрешённые варианты правильного ответа (через запятую):</label>
+            <input type="text" id="ti-accepted" placeholder="ответ1, ответ2, Ответ1" class="text-input">
+            <small style="color:#666;">Регистр игнорируется при проверке.</small>
+        `;
+    } 
+    else if (type === 'table_fill') {
+        html = `
+            <h4>Структура таблицы</h4>
+            <label>Заголовки колонок (через запятую):</label>
+            <input type="text" id="tf-headers" placeholder="Столбец 1, Столбец 2" class="text-input">
+            
+            <div id="tf-rows-list">
+                <!-- Строки добавляются кнопкой ниже -->
+            </div>
+            <button onclick="addTfRow()" class="btn-nav">+ Добавить строку данных</button>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+// --- Хелперы для Multiple Choice ---
+function addMcOption() {
+    const list = document.getElementById('mc-options-list');
+    const count = list.children.length + 1;
+    const div = document.createElement('div');
+    div.className = 'mc-option-row';
+    div.innerHTML = `<input type="text" class="text-input mc-opt-val" placeholder="Вариант ${count}"><button onclick="removeMcOption(this)" class="btn-nav" style="color:red;">-</button>`;
+    list.appendChild(div);
+}
+
+function removeMcOption(btn) {
+    btn.parentElement.remove();
+}
+
+// --- Хелперы для Table Fill ---
+function addTfRow() {
+    const list = document.getElementById('tf-rows-list');
+    const idx = list.children.length;
+    const div = document.createElement('div');
+    div.style.marginBottom = '10px';
+    div.style.border = '1px solid #eee';
+    div.style.padding = '5px';
+    div.innerHTML = `
+        <strong>Строка ${idx + 1}</strong><br>
+        <label>Метка (то, что видит ученик):</label>
+        <input type="text" class="text-input tf-label" placeholder="Напр.: Мышечная ткань">
+        <label>Правильное значение (для проверки):</label>
+        <input type="text" class="text-input tf-value" placeholder="Напр.: Сокращение">
+        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить строку</button>
+        <div style="clear:both;"></div>
+    `;
+    list.appendChild(div);
+}
+
+// === СОХРАНЕНИЕ НОВОГО ВОПРОСА ===
+async function saveNewQuestion() {
+    const category = document.getElementById('task-category').value.trim();
+    const type = document.getElementById('task-type').value;
+    const text = document.getElementById('task-text').value.trim();
+    const points = parseInt(document.getElementById('task-points').value) || 1;
+    const statusEl = document.getElementById('task-status');
+
+    if (!category || !text) {
+        statusEl.innerText = "Ошибка: заполните тему и текст вопроса";
+        statusEl.style.color = "red";
+        return;
+    }
+
+    // Формируем объект вопроса в зависимости от типа
+    let questionObj = {
+        id: Date.now(), // Уникальный ID на основе времени
+        type: type,
+        text: text,
+        points: points
+    };
+
+    try {
+        if (type === 'multiple_choice') {
+            const optionsInputs = document.querySelectorAll('.mc-opt-val');
+            const correctIdxInput = document.getElementById('mc-correct-index');
+            
+            const options = Array.from(optionsInputs).map(inp => inp.value.trim()).filter(v => v !== "");
+            const correctIndex = parseInt(correctIdxInput.value);
+
+            if (options.length < 2) throw new Error("Нужно минимум 2 варианта ответа");
+            if (isNaN(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
+                throw new Error(`Неверный индекс правильного ответа (должен быть от 0 до ${options.length - 1})`);
+            }
+
+            questionObj.options = options;
+            questionObj.correct_index = correctIndex;
+        } 
+        else if (type === 'text_input') {
+            const acceptedStr = document.getElementById('ti-accepted').value.trim();
+            if (!acceptedStr) throw new Error("Укажите хотя бы один правильный ответ");
+            
+            // Разбиваем по запятой, убираем пробелы, приводим к нижнему регистру для хранения эталонов
+            questionObj.accepted_answers = acceptedStr.split(',').map(s => s.trim().toLowerCase());
+        } 
+        else if (type === 'table_fill') {
+            const headersStr = document.getElementById('tf-headers').value.trim();
+            if (!headersStr) throw new Error("Укажите заголовки колонок");
+            
+            questionObj.headers = headersStr.split(',').map(h => h.trim());
+            
+            const rowElements = document.querySelectorAll('#tf-rows-list > div');
+            if (rowElements.length === 0) throw new Error("Добавьте хотя бы одну строку данных");
+
+            questionObj.rows = [];
+            rowElements.forEach(el => {
+                const label = el.querySelector('.tf-label').value.trim();
+                const value = el.querySelector('.tf-value').value.trim();
+                if (label && value) {
+                    questionObj.rows.push({
+                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, // Генерируем уникальный ключ ячейки
+                        label: label,
+                        correct_value: value
+                    });
+                }
+            });
+
+            if (questionObj.rows.length === 0) throw new Error("Все строки пустые или некорректные");
+        }
+
+        // 1. Загружаем текущий questions.json
+        const currentJsonStr = await apiGet('questions');
+        const data = JSON.parse(currentJsonStr);
+
+        // 2. Находим категорию или создаём новую
+        let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
+        if (!cat) {
+            cat = {
+                id: category.toLowerCase().replace(/\s+/g, '_'),
+                name: category,
+                questions: []
+            };
+            data.categories.push(cat);
+        }
+
+        // 3. Добавляем вопрос
+        cat.questions.push(questionObj);
+
+        // 4. Сохраняем обратно
+        await apiPut('questions', JSON.stringify(data, null, 2));
+
+        statusEl.innerText = "Вопрос успешно добавлен!";
+        statusEl.style.color = "green";
+        
+        // Очищаем форму частично
+        document.getElementById('task-text').value = "";
+        document.getElementById('dynamic-fields-container').innerHTML = "";
+        toggleTaskFields(); 
+
+    } catch (e) {
+        console.error(e);
+        statusEl.innerText = "Ошибка: " + e.message;
+        statusEl.style.color = "red";
+    }
+}
+
 // === ИНИЦИАЛИЗАЦИЯ ===
 window.onload = async () => {
     await loadData(); // Сначала грузим вопросы
