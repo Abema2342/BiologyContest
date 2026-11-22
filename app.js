@@ -1,5 +1,5 @@
 // === КОНСТАНТЫ ===
-const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev"; // БЕЗ слэша на конце!
+const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev"; // БЕЗ слэша!
 const ADMIN_KEY  = "abema2342";
 
 // === ГЛОБАЛЬНОЕ СОСТОЯНИЕ ===
@@ -36,8 +36,8 @@ async function loadData() {
         questions = data.categories.flatMap(c => c.questions);
         console.log(`Загружено ${questions.length} вопросов`);
     } catch (e) {
-        console.error("Ошибка загрузки вопросов:", e);
-        alert("Не удалось загрузить вопросы. Проверь консоль.");
+        console.error("Ошибка загрузки:", e);
+        alert("Не удалось загрузить вопросы.");
     }
 }
 
@@ -74,7 +74,7 @@ function logout() {
     location.reload();
 }
 
-// === ОБНОВЛЕНИЕ UI ПОД ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ===
+// === ОБНОВЛЕНИЕ UI ===
 function updateUIForLoggedInUser() {
     const authSection = document.getElementById("auth-section");
     const userInfo = document.getElementById("user-info");
@@ -101,15 +101,11 @@ function updateUIForLoggedInUser() {
     }
 }
 
-// === НАВИГАЦИЯ ПО СТРАНИЦАМ ===
+// === НАВИГАЦИЯ ===
 function showPage(id) {
     document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
     const target = document.getElementById(id);
-    if (target) {
-        target.classList.add("active");
-    } else {
-        console.warn(`Страница "${id}" не найдена в DOM.`);
-    }
+    if (target) target.classList.add("active");
 }
 
 function goHome() {
@@ -146,28 +142,26 @@ function renderQ() {
     } else if (q.type === "text_input") {
         const val = userAnswers[q.id] || "";
         html += `<input type="text" class="text-input" value="${val}" placeholder="Введите ответ..." onchange="saveAnswer(${q.id}, this.value)">`;
-	else if (q.type === "table_fill") {
-		html += `<table class="table-fill"><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
-		
-		q.rows.forEach(r => {
-			// Если это подсказка (is_hint true), рисуем просто текст или disabled input
-			if (r.is_hint) {
-				html += `<tr>
-							<td>${r.label}</td>
-							<td style="background:#f0f8ff; color:#0056b3; font-weight:bold;">${r.correct_value}</td>
-						 </tr>`;
-			} 
-			// Если это задание, рисуем поле ввода
-			else {
-				const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
-				html += `<tr>
-							<td>${r.label}</td>
-							<td><input class="text-input" value="${val}" onchange="saveTableAnswer(${q.id}, '${r.key}', this.value)" placeholder="Впишите ответ..."></td>
-						 </tr>`;
-			}
-		});
-		html += "</table>";
-	}
+    } else if (q.type === "table_fill") {
+        html += `<table class="table-fill"><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
+        
+        q.rows.forEach(r => {
+            // ЛОГИКА ПОДСКАЗОК: если is_hint true, показываем текст, иначе инпут
+            if (r.is_hint) {
+                html += `<tr>
+                            <td>${r.label}</td>
+                            <td style="background:#f0f8ff; color:#0056b3; font-weight:bold;">${r.correct_value}</td>
+                         </tr>`;
+            } else {
+                const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
+                html += `<tr>
+                            <td>${r.label}</td>
+                            <td><input class="text-input" value="${val}" onchange="saveTableAnswer(${q.id}, '${r.key}', this.value)" placeholder="Впишите ответ..."></td>
+                         </tr>`;
+            }
+        });
+        html += "</table>";
+    }
 
     html += "</div>";
     document.getElementById("q-container").innerHTML = html;
@@ -211,28 +205,27 @@ function finishTest() {
         } else if (q.type === "text_input" && ans && q.accepted_answers &&
                    q.accepted_answers.includes(String(ans).toLowerCase().trim())) {
             score += q.points;
-		else if (q.type === "table_fill" && ans) {
-			let correctCells = 0;
-			let totalTaskCells = 0; // Считаем только те клетки, которые реально нужно было заполнить
-			
-			q.rows.forEach(r => {
-				// Пропускаем подсказки
-				if (r.is_hint) return; 
-				
-				totalTaskCells++;
-				const userVal = (ans[r.key] || "").toLowerCase().trim();
-				const correct = (r.correct_value || "").toLowerCase();
-				
-				if (userVal && (userVal.includes(correct) || correct.includes(userVal))) {
-					correctCells++;
-				}
-			});
-			
-			// Делим баллы пропорционально количеству ЗАДАНИЙ (не всех строк!)
-			if (totalTaskCells > 0) {
-				score += Math.round((correctCells / totalTaskCells) * q.points);
-			}
-		}
+        } else if (q.type === "table_fill" && ans) {
+            let correctCells = 0;
+            let totalTaskCells = 0; 
+            
+            q.rows.forEach(r => {
+                // Пропускаем подсказки при подсчете баллов
+                if (r.is_hint) return; 
+                
+                totalTaskCells++;
+                const userVal = (ans[r.key] || "").toLowerCase().trim();
+                const correct = (r.correct_value || "").toLowerCase();
+                
+                if (userVal && (userVal.includes(correct) || correct.includes(userVal))) {
+                    correctCells++;
+                }
+            });
+            
+            if (totalTaskCells > 0) {
+                score += Math.round((correctCells / totalTaskCells) * q.points);
+            }
+        }
     });
 
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
@@ -246,7 +239,7 @@ function openEditor() {
     showPage("editor");
     apiGet("questions")
         .then(t => { document.getElementById("editor-area").value = t; })
-        .catch(e => { document.getElementById("save-status").innerText = "Ошибка загрузки: " + e.message; });
+        .catch(e => { document.getElementById("save-status").innerText = "Ошибка: " + e.message; });
 }
 
 async function saveToGithub() {
@@ -279,7 +272,7 @@ async function openAccountsManager() {
         users = JSON.parse(await apiGet("users"));
     } catch (e) {
         document.getElementById("accounts-container").innerHTML =
-            `<p style="color:red;">Ошибка загрузки пользователей: ${e.message}</p>`;
+            `<p style="color:red;">Ошибка загрузки: ${e.message}</p>`;
         return;
     }
 
@@ -373,7 +366,6 @@ async function deleteAccount(index) {
 async function openTasksList() {
     showPage('tasks-page');
     
-    // Проверяем права админа для кнопки добавления
     const btnAdd = document.getElementById('btn-add-question');
     if (currentUser && currentUser.role === 'admin') {
         if (btnAdd) btnAdd.style.display = 'inline-block';
@@ -381,7 +373,6 @@ async function openTasksList() {
         if (btnAdd) btnAdd.style.display = 'none';
     }
     
-    // Скрываем форму при открытии страницы
     const formContainer = document.getElementById('add-form-container');
     if (formContainer) formContainer.style.display = 'none';
 
@@ -391,7 +382,6 @@ async function openTasksList() {
 async function loadAndRenderTasks() {
     const container = document.getElementById('tasks-list-container');
     try {
-        // Читаем вопросы через Worker
         const dataStr = await apiGet('questions');
         const data = JSON.parse(dataStr);
         
@@ -399,7 +389,6 @@ async function loadAndRenderTasks() {
         if (!data.categories || data.categories.length === 0) {
             html = '<p>Пока нет ни одного вопроса.</p>';
         } else {
-            // Определяем, является ли текущий пользователь админом
             const isAdmin = currentUser && currentUser.role === 'admin';
 
             data.categories.forEach(cat => {
@@ -412,16 +401,12 @@ async function loadAndRenderTasks() {
                     else if (q.type === 'text_input') typeName = "[Текст]";
                     else if (q.type === 'table_fill') typeName = "[Таблица]";
                     
-                    // Базовый элемент списка
                     let liHtml = `<li style="padding:8px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">`;
                     
-                    // Текст вопроса слева
                     liHtml += `<div><strong>${typeName}</strong> ${q.text} 
                                 <span style="color:#777; font-size:12px; margin-left:10px;">(${q.points} балл)</span></div>`;
                     
-                    // Кнопка удаления справа, только если админ
                     if (isAdmin) {
-                        // Передаем индекс категории и индекс вопроса внутри нее для точного удаления
                         liHtml += `<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" 
                                          class="btn-nav" 
                                          style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px;">
@@ -444,14 +429,12 @@ async function loadAndRenderTasks() {
 }
 
 async function deleteQuestion(categoryId, questionIndex) {
-    if (!confirm("Точно удалить этот вопрос? Это действие необратимо.")) return;
+    if (!confirm("Точно удалить этот вопрос?")) return;
 
     try {
-        // 1. Загружаем актуальные данные с сервера (чтобы избежать коллизий версий)
         const currentJsonStr = await apiGet('questions');
         const data = JSON.parse(currentJsonStr);
 
-        // 2. Находим нужную категорию
         const catIndex = data.categories.findIndex(c => c.id === categoryId);
         if (catIndex === -1) {
             alert("Ошибка: категория не найдена.");
@@ -460,19 +443,14 @@ async function deleteQuestion(categoryId, questionIndex) {
 
         const category = data.categories[catIndex];
 
-        // 3. Проверяем корректность индекса вопроса
         if (questionIndex < 0 || questionIndex >= category.questions.length) {
             alert("Ошибка: индекс вопроса неверен.");
             return;
         }
 
-        // 4. Удаляем вопрос из массива
         category.questions.splice(questionIndex, 1);
 
-        // 5. Сохраняем обратно через Worker
         await apiPut('questions', JSON.stringify(data, null, 2));
-
-        // 6. Обновляем список на экране
         loadAndRenderTasks();
         
     } catch (e) {
@@ -545,7 +523,6 @@ function addTfRow() {
     div.style.border = '1px solid #eee';
     div.style.padding = '5px';
     
-    // Добавляем чекбокс "Ячейка подсказки" (если отмечено - ученик её не видит как задание, она уже стоит)
     div.innerHTML = `
         <strong>Строка ${idx + 1}</strong><br>
         <label>Метка (левая колонка):</label>
@@ -601,22 +578,21 @@ async function saveNewQuestion() {
             const rowEls = document.querySelectorAll('#tf-rows-list > div');
             if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
 
-			// ... внутри saveNewQuestion ...
-			questionObj.rows = [];
-			rowEls.forEach(el => {
-				const label = el.querySelector('.tf-label').value.trim();
-				const val = el.querySelector('.tf-value').value.trim();
-				const isHint = el.querySelector('.tf-is-hint').checked; // Читаем новый флаг
-				
-				if (label && val) {
-					questionObj.rows.push({
-						key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-						label: label,
-						correct_value: val,
-						is_hint: isHint // Сохраняем признак подсказки
-					});
-				}
-			});
+            questionObj.rows = [];
+            rowEls.forEach(el => {
+                const label = el.querySelector('.tf-label').value.trim();
+                const val = el.querySelector('.tf-value').value.trim();
+                const isHint = el.querySelector('.tf-is-hint').checked; // Читаем флаг
+                
+                if (label && val) {
+                    questionObj.rows.push({
+                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        label: label,
+                        correct_value: val,
+                        is_hint: isHint // Сохраняем признак
+                    });
+                }
+            });
         }
 
         const currentJsonStr = await apiGet('questions');
