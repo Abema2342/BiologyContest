@@ -402,34 +402,48 @@ async function loadAndRenderTasks() {
         } else {
             const isAdmin = currentUser && currentUser.role === 'admin';
 
-            data.categories.forEach(cat => {
-                html += `<h4 style="color:#0056b3; margin-top:20px;">${cat.name}</h4>`;
-                html += '<ul style="list-style:none; padding-left:0;">';
-                
-                cat.questions.forEach((q, qIndexInCat) => {
-                    let typeName = "";
-                    if (q.type === 'multiple_choice') typeName = "[Выбор]";
-                    else if (q.type === 'text_input') typeName = "[Текст]";
-                    else if (q.type === 'table_fill') typeName = "[Таблица]";
-                    
-                    let liHtml = `<li style="padding:8px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">`;
-                    
-                    liHtml += `<div><strong>${typeName}</strong> ${q.text} 
-                                <span style="color:#777; font-size:12px; margin-left:10px;">(${q.points} балл)</span></div>`;
-                    
-                    if (isAdmin) {
-                        liHtml += `<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" 
-                                         class="btn-nav" 
-                                         style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px;">
-                                     Удалить
-                                 </button>`;
-                    }
-                    
-                    liHtml += `</li>`;
-                    html += liHtml;
-                });
-                html += '</ul>';
-            });
+			// ... внутри loadAndRenderTasks ...
+			data.categories.forEach((cat, catIndex) => {
+				html += `<h4 style="color:#0056b3; margin-top:20px;">${cat.name}</h4>`;
+				html += '<ul style="list-style:none; padding-left:0;">';
+				
+				cat.questions.forEach((q, qIndexInCat) => {
+					let typeName = "";
+					if (q.type === 'multiple_choice') typeName = "[Выбор]";
+					else if (q.type === 'text_input') typeName = "[Текст]";
+					else if (q.type === 'table_fill') typeName = "[Таблица]";
+					
+					// Базовый элемент списка
+					let liHtml = `<li style="padding:8px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">`;
+					
+					// Текст вопроса слева
+					liHtml += `<div><strong>${typeName}</strong> ${q.text} 
+								<span style="color:#777; font-size:12px; margin-left:10px;">(${q.points} балл)</span></div>`;
+					
+					// Кнопки действий справа (только для админа)
+					if (isAdmin) {
+						liHtml += `
+							<div style="display:flex; gap:5px;">
+								<button onclick="editQuestion(${catIndex}, ${qIndexInCat})" 
+										class="btn-nav" 
+										style="background:#ffc107; color:black; border:none; padding:4px 8px; cursor:pointer; font-size:12px;">
+									Изменить
+								</button>
+								<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" 
+										class="btn-nav" 
+										style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px;">
+									Удалить
+								</button>
+							</div>
+						`;
+					}
+					
+					liHtml += `</li>`;
+					html += liHtml;
+				});
+				html += '</ul>';
+			});
+			// ... конец цикла ...
         }
         
         container.innerHTML = html;
@@ -470,13 +484,125 @@ async function deleteQuestion(categoryId, questionIndex) {
     }
 }
 
-function toggleAddForm() {
+let editingContext = null; // Глобальная переменная для хранения контекста редактирования
+
+async function editQuestion(catIndex, qIndex) {
+    try {
+        // 1. Загружаем актуальные данные
+        const dataStr = await apiGet('questions');
+        const data = JSON.parse(dataStr);
+        
+        const category = data.categories[catIndex];
+        const question = category.questions[qIndex];
+        
+        if (!question) throw new Error("Вопрос не найден");
+
+        // 2. Сохраняем контекст для функции saveNewQuestion
+        editingContext = { catIndex, qIndex, originalData: data };
+
+        // 3. Открываем форму
+        toggleAddForm(true); // Принудительно открываем
+        
+        // 4. Заполняем базовые поля
+        document.getElementById('task-category').value = category.name;
+        document.getElementById('task-type').value = question.type;
+        document.getElementById('task-text').value = question.text;
+        document.getElementById('task-points').value = question.points;
+        
+        // Меняем заголовок формы и текст кнопки
+        const formTitle = document.querySelector('#add-form-container h4');
+        if(formTitle) formTitle.innerText = "Редактирование вопроса";
+        
+        const saveBtn = document.querySelector('#add-form-container button.btn-primary');
+        if(saveBtn) saveBtn.innerText = "Сохранить изменения";
+
+        // 5. Инициализируем динамические поля под тип вопроса
+        toggleTaskFields(); 
+        
+        // 6. Заполняем специфичные поля
+        setTimeout(() => fillSpecificFields(question), 100); // Небольшая задержка для рендера DOM
+
+    } catch (e) {
+        console.error(e);
+        alert("Ошибка загрузки данных для редактирования: " + e.message);
+    }
+}
+
+function fillSpecificFields(q) {
+    if (q.type === 'multiple_choice') {
+        const list = document.getElementById('mc-options-list');
+        list.innerHTML = ''; // Очищаем дефолтные два варианта
+        
+        q.options.forEach(opt => {
+            addMcOption(opt); // Вызываем нашу хелпер-функцию, но передаем значение
+        });
+        
+        document.getElementById('mc-correct-index').value = q.correct_index;
+    } 
+    else if (q.type === 'text_input') {
+        document.getElementById('ti-accepted').value = q.accepted_answers.join(', ');
+    } 
+    else if (q.type === 'table_fill') {
+        document.getElementById('tf-headers').value = q.headers.join(', ');
+        
+        const rowsList = document.getElementById('tf-rows-list');
+        rowsList.innerHTML = ''; // Очищаем
+        
+        q.rows.forEach(r => {
+            addTfRowWithData(r); // Специальная функция для заполнения строки
+        });
+    }
+}
+
+// Хелперы для заполнения полей данными
+
+function addMcOption(value = "") {
+    const list = document.getElementById('mc-options-list');
+    const count = list.children.length + 1;
+    const div = document.createElement('div');
+    div.className = 'mc-option-row';
+    div.innerHTML = `
+        <input type="text" class="text-input mc-opt-val" value="${value}" placeholder="Вариант ${count}">
+        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button>
+    `;
+    list.appendChild(div);
+}
+
+function addTfRowWithData(rowData) {
+    const list = document.getElementById('tf-rows-list');
+    const idx = list.children.length;
+    const div = document.createElement('div');
+    div.style.marginBottom = '10px';
+    div.style.border = '1px solid #eee';
+    div.style.padding = '5px';
+    
+    div.innerHTML = `
+        <strong>Строка ${idx + 1}</strong><br>
+        <label>Метка:</label>
+        <input type="text" class="text-input tf-label" value="${rowData.label || ''}">
+        <label>Правильное значение:</label>
+        <input type="text" class="text-input tf-value" value="${rowData.correct_value || ''}">
+        <label style="display:block; margin-top:5px;">
+            <input type="checkbox" class="tf-is-hint" ${rowData.is_hint ? 'checked' : ''}> Это подсказка
+        </label>
+        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button>
+        <div style="clear:both;"></div>
+    `;
+    list.appendChild(div);
+}
+
+function toggleAddForm(forceOpen = false) {
     const form = document.getElementById('add-form-container');
-    if (form.style.display === 'none') {
+    
+    // Если принудительно открыть или форма скрыта -> показать
+    if (forceOpen || form.style.display === 'none') {
         form.style.display = 'block';
-        toggleTaskFields();
+        toggleTaskFields(); // Инициализируем пустые поля (если не редактируем)
     } else {
         form.style.display = 'none';
+        // При закрытии очищаем контекст, если пользователь передумал
+        editingContext = null; 
+        resetFormUI();
     }
 }
 
@@ -578,6 +704,7 @@ async function saveNewQuestion() {
         return;
     }
 
+    // Собираем объект вопроса (логика та же, что и раньше)
     let questionObj = { id: Date.now(), type: type, text: text, points: points };
 
     try {
@@ -594,59 +721,96 @@ async function saveNewQuestion() {
             if (!accStr) throw new Error("Укажите правильный ответ");
             questionObj.accepted_answers = accStr.split(',').map(s => s.trim().toLowerCase());
         } 
-		else if (type === 'table_fill') {
-			const headersStr = document.getElementById('tf-headers').value.trim();
-			if (!headersStr) throw new Error("Укажите заголовки");
-			questionObj.headers = headersStr.split(',').map(h => h.trim());
-			
-			const rowEls = document.querySelectorAll('#tf-rows-list > div');
-			if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
+        else if (type === 'table_fill') {
+            const headersStr = document.getElementById('tf-headers').value.trim();
+            if (!headersStr) throw new Error("Укажите заголовки");
+            questionObj.headers = headersStr.split(',').map(h => h.trim());
+            
+            const rowEls = document.querySelectorAll('#tf-rows-list > div');
+            if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
 
-			questionObj.rows = [];
-			rowEls.forEach(el => {
-				const cellVals = el.querySelectorAll('.tf-cell-val');
-				const cellHints = el.querySelectorAll('.tf-cell-hint');
-				
-				const rowData = {
-					cells: []
-				};
-				
-				// Проходим по всем колонкам текущей строки
-				for(let i=0; i<cellVals.length; i++) {
-					rowData.cells.push({
-						value: cellVals[i].value.trim(),
-						is_hint: cellHints[i].checked
-					});
-				}
-				
-				// Проверка: хотя бы одна ячейка должна иметь значение или быть подсказкой
-				if(rowData.cells.some(c => c.value !== "" || c.is_hint)) {
-					questionObj.rows.push(rowData);
-				}
-			});
-			
-			if(questionObj.rows.length === 0) throw new Error("Все строки пустые");
-		}
+            questionObj.rows = [];
+            rowEls.forEach(el => {
+                const label = el.querySelector('.tf-label').value.trim();
+                const val = el.querySelector('.tf-value').value.trim();
+                const isHint = el.querySelector('.tf-is-hint').checked;
+                
+                if (label && val) {
+                    questionObj.rows.push({
+                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        label: label,
+                        correct_value: val,
+                        is_hint: isHint
+                    });
+                }
+            });
+        }
 
+        // --- ЛОГИКА СОХРАНЕНИЯ ---
+        
+        // 1. Получаем свежие данные с сервера
         const currentJsonStr = await apiGet('questions');
         const data = JSON.parse(currentJsonStr);
 
-        let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
-        if (!cat) {
-            cat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
-            data.categories.push(cat);
+        if (editingContext) {
+            // РЕЖИМ РЕДАКТИРОВАНИЯ
+            const catIndex = editingContext.catIndex;
+            const qIndex = editingContext.qIndex;
+            
+            // Проверяем, не изменилась ли категория (название)
+            // Если название категории изменилось, нам нужно найти новую категорию или создать её
+            let targetCat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
+            
+            if (!targetCat) {
+                // Категории с таким именем больше нет (или было опечатка/изменение имени)
+                // Создаем новую
+                targetCat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
+                data.categories.push(targetCat);
+                
+                // Перемещаем вопрос в новую категорию, удаляя из старой
+                const oldCat = data.categories[catIndex];
+                if(oldCat) {
+                     oldCat.questions.splice(qIndex, 1); // Удаляем из старой
+                }
+                targetCat.questions.push(questionObj); // Добавляем в новую
+                
+            } else {
+                // Категория существует. Обновляем вопрос по индексу.
+                // ВАЖНО: Индекс мог измениться, если кто-то другой правил файл параллельно.
+                // Но для школьного проекта обычно достаточно простого splice/push.
+                
+                // Находим старый вопрос по ID, чтобы быть уверенным
+                const existingQIndex = targetCat.questions.findIndex(q => q.id === editingContext.originalData.categories[catIndex].questions[qIndex].id);
+                
+                if (existingQIndex !== -1) {
+                    targetCat.questions[existingQIndex] = questionObj; // Заменяем
+                } else {
+                    targetCat.questions.push(questionObj); // Добавляем, если не нашли (странность)
+                }
+            }
+
+        } else {
+            // РЕЖИМ ДОБАВЛЕНИЯ (старая логика)
+            let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
+            if (!cat) {
+                cat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
+                data.categories.push(cat);
+            }
+            cat.questions.push(questionObj);
         }
 
-        cat.questions.push(questionObj);
-
+        // 2. Отправляем обновленный JSON на GitHub
         await apiPut('questions', JSON.stringify(data, null, 2));
 
-        statusEl.innerText = "Вопрос успешно добавлен!";
+        statusEl.innerText = editingContext ? "Вопрос успешно обновлен!" : "Вопрос успешно добавлен!";
         statusEl.style.color = "green";
         
+        // 3. Сбрасываем контекст и закрываем форму
         setTimeout(() => {
-            toggleAddForm();
-            loadAndRenderTasks();
+            editingContext = null; // Важно очистить!
+            resetFormUI();         // Возвращаем заголовки/кнопки в исходное состояние
+            toggleAddForm(false);  // Закрываем форму
+            loadAndRenderTasks();  // Обновляем список
         }, 1000);
 
     } catch (e) {
@@ -654,6 +818,15 @@ async function saveNewQuestion() {
         statusEl.innerText = "Ошибка: " + e.message;
         statusEl.style.color = "red";
     }
+}
+
+// Вспомогательная функция для сброса UI формы после редактирования
+function resetFormUI() {
+    const formTitle = document.querySelector('#add-form-container h4');
+    if(formTitle) formTitle.innerText = "Новый вопрос";
+    
+    const saveBtn = document.querySelector('#add-form-container button.btn-primary');
+    if(saveBtn) saveBtn.innerText = "Сохранить вопрос";
 }
 
 // === ИНИЦИАЛИЗАЦИЯ ===
