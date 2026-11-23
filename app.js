@@ -142,26 +142,34 @@ function renderQ() {
     } else if (q.type === "text_input") {
         const val = userAnswers[q.id] || "";
         html += `<input type="text" class="text-input" value="${val}" placeholder="Введите ответ..." onchange="saveAnswer(${q.id}, this.value)">`;
-    } else if (q.type === "table_fill") {
-        html += `<table class="table-fill"><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
-        
-        q.rows.forEach(r => {
-            // ЛОГИКА ПОДСКАЗОК: если is_hint true, показываем текст, иначе инпут
-            if (r.is_hint) {
-                html += `<tr>
-                            <td>${r.label}</td>
-                            <td style="background:#f0f8ff; color:#0056b3; font-weight:bold;">${r.correct_value}</td>
-                         </tr>`;
-            } else {
-                const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
-                html += `<tr>
-                            <td>${r.label}</td>
-                            <td><input class="text-input" value="${val}" onchange="saveTableAnswer(${q.id}, '${r.key}', this.value)" placeholder="Впишите ответ..."></td>
-                         </tr>`;
-            }
-        });
-        html += "</table>";
-    }
+	} else if (q.type === "table_fill") {
+		html += `<table class="table-fill">`;
+		
+		// Header
+		html += `<thead><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
+		
+		// Body
+		html += `<tbody>`;
+		q.rows.forEach((r, rowIndex) => {
+			html += `<tr>`;
+			r.cells.forEach((cell, colIndex) => {
+				const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+				
+				if (cell.is_hint) {
+					// Уже заполнено учеником видеть не может менять
+					html += `<td style="background:#eef5ff; color:#004085; font-weight:bold;">${cell.value}</td>`;
+				} else {
+					// Пустое поле для ввода
+					const userVal = (userAnswers[q.id] && userAnswers[q.id][uniqueKey]) || "";
+					html += `<td><input type="text" class="text-input" value="${userVal}" 
+							 onchange="saveTableAnswer('${q.id}', '${uniqueKey}', this.value)" 
+							 placeholder="..."></td>`;
+				}
+			});
+			html += `</tr>`;
+		});
+		html += `</tbody></table>`;
+	}
 
     html += "</div>";
     document.getElementById("q-container").innerHTML = html;
@@ -205,27 +213,30 @@ function finishTest() {
         } else if (q.type === "text_input" && ans && q.accepted_answers &&
                    q.accepted_answers.includes(String(ans).toLowerCase().trim())) {
             score += q.points;
-        } else if (q.type === "table_fill" && ans) {
-            let correctCells = 0;
-            let totalTaskCells = 0; 
-            
-            q.rows.forEach(r => {
-                // Пропускаем подсказки при подсчете баллов
-                if (r.is_hint) return; 
-                
-                totalTaskCells++;
-                const userVal = (ans[r.key] || "").toLowerCase().trim();
-                const correct = (r.correct_value || "").toLowerCase();
-                
-                if (userVal && (userVal.includes(correct) || correct.includes(userVal))) {
-                    correctCells++;
-                }
-            });
-            
-            if (totalTaskCells > 0) {
-                score += Math.round((correctCells / totalTaskCells) * q.points);
-            }
-        }
+		} else if (q.type === "table_fill" && ans) {
+			let correctCells = 0;
+			let totalTaskCells = 0; 
+			
+			q.rows.forEach((r, rowIndex) => {
+				r.cells.forEach((cell, colIndex) => {
+					// Пропускаем подсказки
+					if (cell.is_hint) return; 
+					
+					totalTaskCells++;
+					const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+					const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
+					const correctVal = (cell.value || "").toLowerCase();
+					
+					if (userVal && (userVal.includes(correctVal) || correctVal.includes(userVal))) {
+						correctCells++;
+					}
+				});
+			});
+			
+			if (totalTaskCells > 0) {
+				score += Math.round((correctCells / totalTaskCells) * q.points);
+			}
+		}
     });
 
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
@@ -517,26 +528,39 @@ function addMcOption() {
 
 function addTfRow() {
     const list = document.getElementById('tf-rows-list');
-    const idx = list.children.length;
-    const div = document.createElement('div');
-    div.style.marginBottom = '10px';
-    div.style.border = '1px solid #eee';
-    div.style.padding = '5px';
+    const headersInput = document.getElementById('tf-headers').value.trim();
     
+    if (!headersInput) {
+        alert("Сначала заполните заголовки колонок!");
+        return;
+    }
+    
+    const cols = headersInput.split(',');
+    const idx = list.children.length;
+    
+    const div = document.createElement('div');
+    div.style.marginBottom = '15px';
+    div.style.border = '1px solid #ddd';
+    div.style.padding = '10px';
+    div.style.background = '#fafafa';
+    
+    let cellsHtml = '';
+    cols.forEach((colName, i) => {
+        cellsHtml += `
+            <div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dotted #ccc;">
+                <label><b>Колонка ${i+1}: ${colName.trim()}</b></label><br>
+                <input type="text" class="text-input tf-cell-val" placeholder="Введите правильный ответ..." style="width:70%; display:inline-block;">
+                <label style="display:inline-block; margin-left:10px;">
+                    <input type="checkbox" class="tf-cell-hint"> Подсказка (ученик не вводит)
+                </label>
+            </div>
+        `;
+    });
+
     div.innerHTML = `
-        <strong>Строка ${idx + 1}</strong><br>
-        <label>Метка (левая колонка):</label>
-        <input type="text" class="text-input tf-label" placeholder="Напр.: Мышечная ткань">
-        
-        <label>Правильный ответ (правая колонка):</label>
-        <input type="text" class="text-input tf-value" placeholder="Напр.: Сокращение">
-        
-        <label style="display:block; margin-top:5px;">
-            <input type="checkbox" class="tf-is-hint"> Это подсказка (ученик увидит её сразу, вводить не надо)
-        </label>
-        
-        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button>
-        <div style="clear:both;"></div>
+        <strong>Строка ${idx + 1}</strong>
+        ${cellsHtml}
+        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">Удалить строку</button>
     `;
     list.appendChild(div);
 }
@@ -570,30 +594,39 @@ async function saveNewQuestion() {
             if (!accStr) throw new Error("Укажите правильный ответ");
             questionObj.accepted_answers = accStr.split(',').map(s => s.trim().toLowerCase());
         } 
-        else if (type === 'table_fill') {
-            const headersStr = document.getElementById('tf-headers').value.trim();
-            if (!headersStr) throw new Error("Укажите заголовки");
-            questionObj.headers = headersStr.split(',').map(h => h.trim());
-            
-            const rowEls = document.querySelectorAll('#tf-rows-list > div');
-            if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
+		else if (type === 'table_fill') {
+			const headersStr = document.getElementById('tf-headers').value.trim();
+			if (!headersStr) throw new Error("Укажите заголовки");
+			questionObj.headers = headersStr.split(',').map(h => h.trim());
+			
+			const rowEls = document.querySelectorAll('#tf-rows-list > div');
+			if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
 
-            questionObj.rows = [];
-            rowEls.forEach(el => {
-                const label = el.querySelector('.tf-label').value.trim();
-                const val = el.querySelector('.tf-value').value.trim();
-                const isHint = el.querySelector('.tf-is-hint').checked; // Читаем флаг
-                
-                if (label && val) {
-                    questionObj.rows.push({
-                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                        label: label,
-                        correct_value: val,
-                        is_hint: isHint // Сохраняем признак
-                    });
-                }
-            });
-        }
+			questionObj.rows = [];
+			rowEls.forEach(el => {
+				const cellVals = el.querySelectorAll('.tf-cell-val');
+				const cellHints = el.querySelectorAll('.tf-cell-hint');
+				
+				const rowData = {
+					cells: []
+				};
+				
+				// Проходим по всем колонкам текущей строки
+				for(let i=0; i<cellVals.length; i++) {
+					rowData.cells.push({
+						value: cellVals[i].value.trim(),
+						is_hint: cellHints[i].checked
+					});
+				}
+				
+				// Проверка: хотя бы одна ячейка должна иметь значение или быть подсказкой
+				if(rowData.cells.some(c => c.value !== "" || c.is_hint)) {
+					questionObj.rows.push(rowData);
+				}
+			});
+			
+			if(questionObj.rows.length === 0) throw new Error("Все строки пустые");
+		}
 
         const currentJsonStr = await apiGet('questions');
         const data = JSON.parse(currentJsonStr);
