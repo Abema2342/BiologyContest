@@ -66,4 +66,65 @@ h1, h2 { color: #0056b3; }
     border-color: #80bdff;
     box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
 }
+
+/* Список заданий (вкладка "Все задания") */
+.tasks-list {
+    list-style: none;
+    padding: 0;
+    margin: 15px 0;
+    border: 1px solid #dee2e6; /* Рамка вокруг всего списка */
+    border-radius: 4px;
+}
+
+.tasks-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid #eee; /* Разделитель между элементами */
+    transition: background-color 0.2s ease;
+}
+
+.tasks-item:last-child {
+    border-bottom: none; /* Убираем нижнюю границу у последнего элемента */
+}
+
+/* Чередование цветов фона */
+.tasks-item:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+.tasks-item:nth-child(even) {
+    background-color: #f8f9fa; /* Светло-серый для четных */
+}
+
+/* Подсветка при наведении */
+.tasks-item:hover {
+    background-color: #e2e6ea !important; /* Более темный серый */
+    cursor: pointer;
+}
+
+/* Название категории */
+.task-category-header {
+    color: #0056b3;
+    margin-top: 20px;
+    margin-bottom: 5px;
+    font-size: 18px;
+    border-left: 4px solid #0056b3; /* Акцентная полоса слева */
+    padding-left: 10px;
+}
+
+/* Тип вопроса (тег) */
+.task-type-badge {
+    font-weight: bold;
+    margin-right: 8px;
+    color: #333;
+}
+
+/* Баллы */
+.task-points {
+    color: #777;
+    font-size: 12px;
+    margin-left: auto; /* Прижимаем к правому краю, если нет кнопки */
+}
 #json-editor { width: 100%; height: 300px; font-family: monospace; }
