@@ -11,7 +11,59 @@ h1, h2 { color: #0056b3; }
 .text-input { width: 100%; padding: 8px; border: 1px solid #ccc; margin: 5px 0; box-sizing: border-box; }
 .btn-primary { background: #0056b3; color: white; border: none; padding: 10px 20px; cursor: pointer; }
 .btn-nav { background: #eee; border: none; padding: 8px 15px; cursor: pointer; margin-right: 5px; }
-.table-fill { width: 100%; border-collapse: collapse; margin-top: 10px; }
-.table-fill th, .table-fill td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-.table-fill th { background: #f0f0f0; }
+/* Таблица вопросов */
+.table-fill {
+    width: 100%;
+    border-collapse: collapse; /* Объединяем границы ячеек в одну линию */
+    margin-top: 15px;
+    font-size: 14px;
+}
+
+/* Шапка таблицы */
+.table-fill th {
+    background-color: #e9ecef; /* Светло-серый фон заголовков */
+    color: #333;
+    text-align: left;
+    padding: 12px 15px;
+    border: 1px solid #dee2e6; /* Рамка вокруг заголовка */
+    font-weight: bold;
+}
+
+/* Обычные ячейки */
+.table-fill td {
+    padding: 10px 15px;
+    border: 1px solid #dee2e6; /* Тонкая серая рамка */
+    vertical-align: middle;
+}
+
+/* Чередование строк (зебра) */
+.table-fill tbody tr:nth-child(odd) {
+    background-color: #ffffff; /* Белые строки */
+}
+
+.table-fill tbody tr:nth-child(even) {
+    background-color: #f8f9fa; /* Чуть темнее белые (светло-серый) */
+}
+
+/* Эффект при наведении мышкой */
+.table-fill tbody tr:hover {
+    background-color: #e2e6ea !important; /* Темно-серый при наведении */
+    transition: background-color 0.2s ease; /* Плавная анимация цвета */
+    cursor: pointer; /* Курсор указателя, чтобы было понятно, что это интерактивно */
+}
+
+/* Стилизация полей ввода внутри таблицы (чтобы не ломали вид) */
+.table-fill input[type="text"] {
+    width: 100%;
+    box-sizing: border-box; /* Учитываем padding внутри ширины */
+    padding: 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    outline: none;
+}
+
+.table-fill input[type="text"]:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
 #json-editor { width: 100%; height: 300px; font-family: monospace; }
