@@ -37,27 +37,55 @@
             <header><h1>Биология 9 класс: Контест</h1></header>
             
             <!-- Страница Главная -->
-            <div id="home" class="page active">
-                <p>Добро пожаловать! Выберите действие в меню слева.</p>
-            </div>
+			<div id="home" class="page active">
+				<h2>Добро пожаловать!</h2>
+				<p>Выберите действие в меню слева.</p>
+			</div>
 
             <!-- Страница Теста -->
-            <div id="contest" class="page">
-                <div id="q-container"></div>
-                <div class="navigation">
-                    <button onclick="prevQ()" class="btn-nav">Назад</button>
-                    <span id="counter" style="margin:0 15px;"></span>
-                    <button onclick="nextQ()" class="btn-nav">Вперёд</button>
-                    <button onclick="finishTest()" class="btn-finish" style="float:right;">Завершить</button>
-                </div>
-            </div>
+			<div id="contest" class="page">
+				
+				<!-- ЭКРАН 1: Выбор тем (виден до начала теста) -->
+				<div id="topic-selection-screen">
+					<h3>Выберите темы для теста:</h3>
+					
+					<div id="topics-checkbox-list" style="margin-bottom:15px; padding:10px; border:1px solid #eee; border-radius:4px; background:#fafafa;">
+						<!-- Сюда JS вставит чекбоксы -->
+						<p>Загрузка...</p>
+					</div>
+					
+					<button onclick="startSelectedTest()" class="btn-primary">Начать тест по выбранным темам</button>
+					<button onclick="startFullTest()" class="btn-nav" style="margin-left:10px;">Тест по всем темам</button>
+					<br><br>
+					<button onclick="goHome()" class="btn-nav">Отмена</button>
+				</div>
+
+				<!-- ЭКРАН 2: Сам тест (скрыт изначально) -->
+				<div id="test-running-screen" style="display:none;">
+					<div id="q-container"></div>
+					<div class="navigation">
+						<button onclick="prevQ()" id="btn-prev" class="btn-nav-test">Назад</button>
+						<span id="counter" class="counter-display"></span>
+						<button onclick="nextQ()" id="btn-next" class="btn-nav-test">Вперёд</button>
+						<button onclick="finishTest()" class="btn-finish">Завершить</button>
+					</div>
+				</div>
+
+			</div>
 
             <!-- Страница Результатов -->
-            <div id="results" class="page">
-                <h2>Результаты</h2>
-                <div id="score-display" style="font-size:24px; color:#0056b3; margin:20px 0;"></div>
-                <button onclick="goHome()" class="btn-primary">На главную</button>
-            </div>
+			<div id="results" class="page">
+				<h2>Результаты</h2>
+				<div id="score-display" style="font-size:24px; color:#0056b3; margin:20px 0;"></div>
+				
+				<!-- Новый контейнер для списка разбора -->
+				<div id="review-list-container">
+					<!-- Сюда JS вставит таблицу вопросов -->
+				</div>
+				
+				<br>
+				<button onclick="goHome()" class="btn-primary">На главную</button>
+			</div>
 
             <!-- Страница Редактора (Admin) -->
             <div id="editor" class="page">

@@ -1,25 +1,171 @@
-body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; color: #333; }
-.container { display: flex; max-width: 1200px; margin: 0 auto; background: #fff; min-height: 100vh; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-.sidebar { width: 250px; background: #f9f9f9; border-right: 1px solid #ddd; padding: 20px; display: flex; flex-direction: column; }
-.main-content { flex: 1; padding: 30px; }
-.menu-item { display: block; padding: 10px; color: #333; text-decoration: none; border-bottom: 1px solid #eee; }
-.menu-item:hover { background: #eef5ff; color: #0056b3; }
-h1, h2 { color: #0056b3; }
-.page { display: none; }
-.page.active { display: block; }
-.question-block { border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; background: #fff; }
-.text-input { width: 100%; padding: 8px; border: 1px solid #ccc; margin: 5px 0; box-sizing: border-box; }
-.btn-primary { background: #0056b3; color: white; border: none; padding: 10px 20px; cursor: pointer; }
-.btn-nav { background: #eee; border: none; padding: 8px 15px; cursor: pointer; margin-right: 5px; }
-/* Таблица вопросов */
-.table-fill {
-    width: 100%;
-    border-collapse: collapse; /* Объединяем границы ячеек в одну линию */
-    margin-top: 15px;
-    font-size: 14px;
+/* === БАЗОВЫЕ СТИЛИ И КАРКАС === */
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background: #f4f6f9; 
+    margin: 0; 
+    color: #333; 
+    line-height: 1.5;
 }
 
-/* Шапка таблицы */
+.container { 
+    display: flex; 
+    max-width: 1200px; 
+    margin: 0 auto; 
+    background: #fff; 
+    min-height: 100vh; 
+    box-shadow: 0 0 20px rgba(0,0,0,0.08); 
+}
+
+.sidebar { 
+    width: 260px; 
+    background: #ffffff; 
+    border-right: 1px solid #e0e0e0; 
+    padding: 20px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 10px;
+}
+
+.main-content { 
+    flex: 1; 
+    padding: 30px; 
+    overflow-y: auto;
+}
+
+h1, h2, h3, h4 { 
+    color: #0056b3; 
+    margin-top: 0; 
+    margin-bottom: 15px;
+}
+
+/* === НАВИГАЦИЯ (МЕНЮ) === */
+.menu-item { 
+    display: block; 
+    padding: 12px 15px; 
+    color: #444; 
+    text-decoration: none; 
+    border-radius: 6px; 
+    transition: all 0.2s ease; 
+    font-weight: 500;
+}
+
+.menu-item:hover { 
+    background: #eef5ff; 
+    color: #0056b3; 
+    transform: translateX(3px);
+}
+
+/* === ФОРМЫ ВХОДА / ПРОФИЛЬ === */
+#auth-section, #user-info {
+    margin-top: auto; /* Прижимаем к низу сайдбара */
+    padding-top: 20px; 
+    border-top: 1px solid #eee;
+}
+
+.text-input { 
+    width: 100%; 
+    padding: 10px; 
+    border: 1px solid #ccc; 
+    border-radius: 4px; 
+    margin: 5px 0; 
+    box-sizing: border-box; 
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.text-input:focus {
+    outline: none;
+    border-color: #0056b3;
+    box-shadow: 0 0 0 2px rgba(0,86,179,0.1);
+}
+
+.btn-primary { 
+    background: #0056b3; 
+    color: white; 
+    border: none; 
+    padding: 10px 20px; 
+    cursor: pointer; 
+    border-radius: 4px; 
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.btn-primary:hover {
+    background: #004494;
+}
+
+.btn-nav { 
+    background: #e9ecef; 
+    border: none; 
+    padding: 8px 15px; 
+    cursor: pointer; 
+    margin-right: 5px; 
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.btn-nav:hover {
+    background: #dde2e6;
+}
+
+/* === СТРАНИЦЫ (СКРЫТИЕ/ПОКАЗ) === */
+.page { 
+    display: none; 
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.page.active { 
+    display: block; 
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* === ТЕСТ: ВОПРОСЫ И ТАБЛИЦЫ === */
+.question-block { 
+    border: 1px solid #ddd; 
+    padding: 20px; 
+    margin-bottom: 20px; 
+    background: #fff; 
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+}
+
+.options label {
+    display: block;
+    padding: 8px 12px;
+    margin: 5px 0;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.options label:hover {
+    background: #f8f9fa;
+    border-color: #dee2e6;
+}
+
+.navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+/* --- ТАБЛИЦА ЗАПОЛНЕНИЯ (TABLE_FILL) --- */
+.table-fill {
+    width: 100%;
+    border-collapse: collapse; /* Склеивает границы ячеек в одну линию */
+    margin-top: 15px;
+    font-size: 14px;
+    background: #fff;
+}
+
 .table-fill th {
     background-color: #e9ecef; /* Светло-серый фон заголовков */
     color: #333;
@@ -29,7 +175,6 @@ h1, h2 { color: #0056b3; }
     font-weight: bold;
 }
 
-/* Обычные ячейки */
 .table-fill td {
     padding: 10px 15px;
     border: 1px solid #dee2e6; /* Тонкая серая рамка */
@@ -49,10 +194,9 @@ h1, h2 { color: #0056b3; }
 .table-fill tbody tr:hover {
     background-color: #e2e6ea !important; /* Темно-серый при наведении */
     transition: background-color 0.2s ease; /* Плавная анимация цвета */
-    cursor: pointer; /* Курсор указателя, чтобы было понятно, что это интерактивно */
 }
 
-/* Стилизация полей ввода внутри таблицы (чтобы не ломали вид) */
+/* Стилизация полей ввода внутри таблицы */
 .table-fill input[type="text"] {
     width: 100%;
     box-sizing: border-box; /* Учитываем padding внутри ширины */
@@ -60,6 +204,7 @@ h1, h2 { color: #0056b3; }
     border: 1px solid #ced4da;
     border-radius: 4px;
     outline: none;
+    font-size: 14px;
 }
 
 .table-fill input[type="text"]:focus {
@@ -67,21 +212,42 @@ h1, h2 { color: #0056b3; }
     box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
 }
 
-/* Список заданий (вкладка "Все задания") */
+/* Ячейка-подсказка (уже заполненная учеником видеть не может менять) */
+.table-fill .hint-cell {
+    background-color: #f0f8ff; 
+    color: #0056b3; 
+    font-weight: bold;
+    text-align: center;
+}
+
+/* === СПИСОК ЗАДАНИЙ (ВКЛАДКА "ВСЕ ЗАДАНИЯ") === */
+.task-category-header { 
+    color: #0056b3; 
+    margin-top: 25px; 
+    margin-bottom: 10px; 
+    font-size: 18px; 
+    border-left: 4px solid #0056b3; /* Акцентная полоса слева */
+    padding-left: 10px; 
+}
+
 .tasks-list {
     list-style: none;
     padding: 0;
-    margin: 15px 0;
-    border: 1px solid #dee2e6; /* Рамка вокруг всего списка */
-    border-radius: 4px;
+    margin: 0 0 20px 0; /* Отступ только снизу всего списка */
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    overflow: hidden; /* Обрезаем дочерние элементы по скруглению */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .tasks-item {
+    position: relative; /* Важно для абсолютного позиционирования полосы статуса */
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 15px;
-    border-bottom: 1px solid #eee; /* Разделитель между элементами */
+    padding: 12px 15px 12px 20px; /* Компактный внутренний отступ, слева больше под полосу */
+    border-bottom: 1px solid #eee;
+    background-color: #ffffff; /* Белый фон по умолчанию */
     transition: background-color 0.2s ease;
 }
 
@@ -89,42 +255,198 @@ h1, h2 { color: #0056b3; }
     border-bottom: none; /* Убираем нижнюю границу у последнего элемента */
 }
 
-/* Чередование цветов фона */
-.tasks-item:nth-child(odd) {
-    background-color: #ffffff;
-}
+/* Зебра без лишних отступов */
+.tasks-item:nth-child(odd) { background-color: #ffffff; }
+.tasks-item:nth-child(even) { background-color: #f8f9fa; }
 
-.tasks-item:nth-child(even) {
-    background-color: #f8f9fa; /* Светло-серый для четных */
-}
-
-/* Подсветка при наведении */
 .tasks-item:hover {
-    background-color: #e2e6ea !important; /* Более темный серый */
-    cursor: pointer;
+    background-color: #e2e6ea !important; /* Более темный серый при наведении */
+    cursor: default;
 }
 
-/* Название категории */
-.task-category-header {
-    color: #0056b3;
-    margin-top: 20px;
-    margin-bottom: 5px;
-    font-size: 18px;
-    border-left: 4px solid #0056b3; /* Акцентная полоса слева */
-    padding-left: 10px;
+/* Цветная полоса слева (индикатор статуса) */
+.tasks-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px; /* Ширина полосы */
+    z-index: 1;
+    background-color: transparent; /* По умолчанию прозрачно */
+}
+
+/* Статус: Правильно (Зеленый) */
+.tasks-item.status-correct::before {
+    background-color: #28a745; /* Зеленый Bootstrap success */
+}
+.tasks-item.status-correct {
+    background-color: #f0fdf4 !important; /* Очень светлый зеленый фон всей строки */
+}
+
+/* Статус: Неправильно (Красный) */
+.tasks-item.status-wrong::before {
+    background-color: #dc3545; /* Красный Bootstrap danger */
+}
+.tasks-item.status-wrong {
+    background-color: #fef2f2 !important; /* Очень светлый красный фон всей строки */
 }
 
 /* Тип вопроса (тег) */
 .task-type-badge {
     font-weight: bold;
-    margin-right: 8px;
-    color: #333;
+    margin-right: 10px;
+    color: #555;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 /* Баллы */
 .task-points {
     color: #777;
-    font-size: 12px;
-    margin-left: auto; /* Прижимаем к правому краю, если нет кнопки */
+    font-size: 13px;
+    margin-left: 15px;
+    white-space: nowrap;
 }
-#json-editor { width: 100%; height: 300px; font-family: monospace; }
+
+/* Кнопки действий в списке заданий */
+.tasks-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* === РЕДАКТОР JSON === */
+#editor-area {
+    width: 100%;
+    height: 400px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+    background: #fafafa;
+}
+
+/* === АДАПТИВНОСТЬ (MEDIA QUERIES) === */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+        padding: 15px;
+    }
+    .main-content {
+        padding: 20px;
+    }
+    .tasks-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .tasks-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+/* === УПЛОТНЕНИЕ ВАРИАНТОВ ОТВЕТА === */
+.options label {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Расстояние между радиокнопкой и текстом */
+    padding: 8px 12px; /* Компактный внутренний отступ */
+    margin: 4px 0; /* Небольшой отступ между вариантами */
+    border: 1px solid #dee2e6; /* Видимая граница варианта */
+    border-radius: 6px; /* Скругленные углы карточки варианта */
+    cursor: pointer;
+    transition: all 0.2s ease; /* Плавная анимация всех свойств */
+    background-color: #fff; /* Белый фон по умолчанию */
+}
+
+.options label:hover {
+    background-color: #f1f3f5; /* Темнее при наведении */
+    border-color: #adb5bd; /* Граница становится темнее */
+    transform: translateY(-1px); /* Легкий подъем для эффекта "нажатия" */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Лёгкая тень */
+}
+
+/* Стиль выбранного варианта (когда radio checked) */
+.options input[type="radio"]:checked + span {
+    font-weight: bold;
+    color: #0056b3; /* Синий цвет текста выбранного ответа */
+}
+
+/* Саму радиокнопку можно чуть увеличить для удобства */
+.options input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #0056b3; /* Цвет самой точки выбора */
+    cursor: pointer;
+}
+
+/* === СТИЛИЗАЦИЯ КНОПОК НАВИГАЦИИ ТЕСТА === */
+.navigation {
+    display: flex;
+    justify-content: space-between; /* Растягиваем кнопки по краям */
+    align-items: center;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+/* Общий стиль для кнопок Назад/Вперёд */
+.btn-nav-test {
+    background: #ffffff;
+    color: #495057;
+    border: 1px solid #ced4da;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 100px; /* Чтобы кнопки были одинаковой ширины */
+    text-align: center;
+}
+
+.btn-nav-test:hover:not(:disabled) {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+    color: #212529;
+}
+
+.btn-nav-test:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #e9ecef;
+}
+
+/* Кнопка Завершить (выделенная) */
+.btn-finish {
+    background: #dc3545; /* Красный акцент */
+    color: white;
+    border: none;
+    padding: 10px 25px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+    box-shadow: 0 2px 5px rgba(220, 53, 69, 0.3);
+}
+
+.btn-finish:hover {
+    background: #c82333;
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Счетчик вопросов посередине */
+.counter-display {
+    font-size: 14px;
+    color: #6c757d;
+    font-weight: 500;
+}

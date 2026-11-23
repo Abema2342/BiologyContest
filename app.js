@@ -3,7 +3,8 @@ const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev"; // БЕЗ с�
 const ADMIN_KEY  = "abema2342";
 
 // === ГЛОБАЛЬНОЕ СОСТОЯНИЕ ===
-let questions = [];
+let allCategories = []; // Полная структура категорий для выбора тем
+let questions = [];     // Плоский список вопросов текущего теста
 let currentUser = null;
 let currentQIndex = 0;
 let userAnswers = {};
@@ -33,8 +34,12 @@ async function apiPut(route, contentStr) {
 async function loadData() {
     try {
         const data = JSON.parse(await apiGet("questions"));
-        questions = data.categories.flatMap(c => c.questions);
-        console.log(`Загружено ${questions.length} вопросов`);
+        
+        // Сохраняем полную структуру категорий
+        allCategories = data.categories || [];
+        
+        console.log(`Загружено ${allCategories.length} категорий`);
+        
     } catch (e) {
         console.error("Ошибка загрузки:", e);
         alert("Не удалось загрузить вопросы.");
@@ -74,7 +79,7 @@ function logout() {
     location.reload();
 }
 
-// === ОБНОВЛЕНИЕ UI ===
+// === ОБНОВЛЕНИЕ UI ПОД ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ===
 function updateUIForLoggedInUser() {
     const authSection = document.getElementById("auth-section");
     const userInfo = document.getElementById("user-info");
@@ -101,7 +106,7 @@ function updateUIForLoggedInUser() {
     }
 }
 
-// === НАВИГАЦИЯ ===
+// === НАВИГАЦИЯ ПО СТРАНИЦАМ ===
 function showPage(id) {
     document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
     const target = document.getElementById(id);
@@ -112,23 +117,103 @@ function goHome() {
     showPage("home");
 }
 
-// === ТЕСТ ===
+// === ЛОГИКА ВЫБОРА ТЕМ И СТАРТА ТЕСТА ===
+
+// Кнопка в меню "Начать тест" -> Показывает экран выбора
 function startTest() {
     if (!currentUser) {
         alert("Сначала войдите в аккаунт!");
         return;
     }
-    if (!questions.length) {
-        alert("Вопросы не загружены.");
+    if (!allCategories || allCategories.length === 0) {
+        alert("Нет доступных вопросов.");
         return;
     }
-    currentQIndex = 0;
-    userAnswers = {};
-    renderQ();
+
+    // Переключаемся на страницу теста
     showPage("contest");
+    
+    // Показываем только экран выбора, скрываем сам тест
+    const topicScreen = document.getElementById('topic-selection-screen');
+    const testScreen = document.getElementById('test-running-screen');
+    
+    if (topicScreen) topicScreen.style.display = 'block';
+    if (testScreen) testScreen.style.display = 'none';
+    
+    renderTopicSelection(); // Рисуем чекбоксы
 }
 
+// Функция отрисовки чекбоксов тем
+function renderTopicSelection() {
+    const container = document.getElementById('topics-checkbox-list');
+    if (!container) return;
+
+    let html = '';
+    allCategories.forEach((cat, index) => {
+        html += `
+            <label style="display:block; margin:5px 0; cursor:pointer; padding:5px; border-radius:3px; transition:background 0.2s;" onmouseover="this.style.background='#eef'" onmouseout="this.style.background='transparent'">
+                <input type="checkbox" class="topic-check" value="${index}" checked> 
+                <strong>${cat.name}</strong> (${cat.questions.length} вопр.)
+            </label>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Запуск теста по выбранным темам
+function startSelectedTest() {
+    const checkboxes = document.querySelectorAll('.topic-check:checked');
+    if (checkboxes.length === 0) {
+        alert("Выберите хотя бы одну тему!");
+        return;
+    }
+    
+    // Собираем вопросы из выбранных категорий
+    let selectedQuestions = [];
+    checkboxes.forEach(cb => {
+        const catIndex = parseInt(cb.value);
+        const cat = allCategories[catIndex];
+        if (cat && cat.questions) {
+            selectedQuestions = selectedQuestions.concat(cat.questions);
+        }
+    });
+    
+    if (selectedQuestions.length === 0) {
+        alert("В выбранных темах нет вопросов.");
+        return;
+    }
+    
+    // Подменяем глобальный массив вопросов для текущего теста
+    questions = selectedQuestions;
+    currentQIndex = 0;
+    userAnswers = {}; 
+    
+    // Переключаем экраны
+    document.getElementById('topic-selection-screen').style.display = 'none';
+    document.getElementById('test-running-screen').style.display = 'block';
+    
+    renderQ();
+}
+
+// Запуск полного теста (все вопросы подряд)
+function startFullTest() {
+    // Берем все вопросы из всех категорий
+    questions = allCategories.flatMap(c => c.questions);
+    currentQIndex = 0;
+    userAnswers = {};
+    
+    // Переключаем экраны
+    document.getElementById('topic-selection-screen').style.display = 'none';
+    document.getElementById('test-running-screen').style.display = 'block';
+    
+    renderQ();
+}
+
+// === ОТРИСОВКА ВОПРОСА ===
 function renderQ() {
+    if (!questions || questions.length === 0) return;
+    
     const q = questions[currentQIndex];
     let html = `<div class="question-block"><h3>${q.text}</h3>`;
 
@@ -142,38 +227,28 @@ function renderQ() {
     } else if (q.type === "text_input") {
         const val = userAnswers[q.id] || "";
         html += `<input type="text" class="text-input" value="${val}" placeholder="Введите ответ..." onchange="saveAnswer(${q.id}, this.value)">`;
-	} else if (q.type === "table_fill") {
-		html += `<table class="table-fill">`;
-		
-		// Header
-		html += `<thead><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
-		
-		// Body
-		html += `<tbody>`;
-		q.rows.forEach((r, rowIndex) => {
-			html += `<tr>`;
-			r.cells.forEach((cell, colIndex) => {
-				const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
-				
-				if (cell.is_hint) {
-					// Уже заполнено учеником видеть не может менять
-					html += `<td style="background:#eef5ff; color:#004085; font-weight:bold;">${cell.value}</td>`;
-				} else {
-					// Пустое поле для ввода
-					const userVal = (userAnswers[q.id] && userAnswers[q.id][uniqueKey]) || "";
-					html += `<td><input type="text" class="text-input" value="${userVal}" 
-							 onchange="saveTableAnswer('${q.id}', '${uniqueKey}', this.value)" 
-							 placeholder="..."></td>`;
-				}
-			});
-			html += `</tr>`;
-		});
-		html += `</tbody></table>`;
-	}
+    } else if (q.type === "table_fill") {
+        html += `<table class="table-fill"><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
+        q.rows.forEach(r => {
+            if (r.is_hint) {
+                html += `<tr><td>${r.label}</td><td style="background:#f0f8ff; color:#0056b3; font-weight:bold;">${r.correct_value}</td></tr>`;
+            } else {
+                const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
+                html += `<tr><td>${r.label}</td><td><input class="text-input" value="${val}" onchange="saveTableAnswer(${q.id}, '${r.key}', this.value)" placeholder="..."></td></tr>`;
+            }
+        });
+        html += "</table>";
+    }
 
     html += "</div>";
     document.getElementById("q-container").innerHTML = html;
     document.getElementById("counter").innerText = `${currentQIndex + 1} / ${questions.length}`;
+    
+    // Блокировка кнопок навигации
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    if (btnPrev) btnPrev.disabled = currentQIndex === 0;
+    if (btnNext) btnNext.disabled = currentQIndex === questions.length - 1;
 }
 
 function saveAnswer(qId, val) {
@@ -203,45 +278,108 @@ function prevQ() {
 function finishTest() {
     let score = 0;
     let maxScore = 0;
+    
+    // Собираем данные для отображения
+    const reviewItems = [];
 
     questions.forEach(q => {
         maxScore += q.points;
         const ans = userAnswers[q.id];
+        let isCorrect = false;
+        let detailText = "";
 
-        if (q.type === "multiple_choice" && ans === q.correct_index) {
+        if (q.type === "multiple_choice") {
+            isCorrect = (ans === q.correct_index);
+            const userOpt = (ans !== undefined && ans !== null) ? q.options[ans] : "(нет ответа)";
+            const correctOpt = q.options[q.correct_index];
+            detailText = `Ваш ответ: ${userOpt} | Правильный: ${correctOpt}`;
+        } 
+        else if (q.type === "text_input") {
+            if (ans && q.accepted_answers) {
+                const normalizedAns = String(ans).toLowerCase().trim();
+                isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === normalizedAns);
+            }
+            detailText = `Ваш ответ: ${ans || "(пусто)"} | Правильные: ${(q.accepted_answers || []).join(", ")}`;
+        } 
+        else if (q.type === "table_fill") {
+            let correctCells = 0;
+            let totalCells = 0;
+            
+            if (ans) {
+                q.rows.forEach(r => {
+                    if (r.is_hint) return; // Пропускаем подсказки
+                    totalCells++;
+                    const userVal = (ans[r.key] || "").toLowerCase().trim();
+                    const correctVal = (r.correct_value || "").toLowerCase();
+                    if (userVal && (userVal.includes(correctVal) || correctVal.includes(userVal))) {
+                        correctCells++;
+                    }
+                });
+                
+                // Если все обязательные ячейки верны - вопрос засчитан полностью
+                if (totalCells > 0 && correctCells === totalCells) {
+                    isCorrect = true;
+                }
+                
+                detailText = `Верно ячеек: ${correctCells}/${totalCells}`;
+            } else {
+                detailText = "(нет данных)";
+            }
+        }
+
+        if (isCorrect) {
             score += q.points;
-        } else if (q.type === "text_input" && ans && q.accepted_answers &&
-                   q.accepted_answers.includes(String(ans).toLowerCase().trim())) {
-            score += q.points;
-		} else if (q.type === "table_fill" && ans) {
-			let correctCells = 0;
-			let totalTaskCells = 0; 
-			
-			q.rows.forEach((r, rowIndex) => {
-				r.cells.forEach((cell, colIndex) => {
-					// Пропускаем подсказки
-					if (cell.is_hint) return; 
-					
-					totalTaskCells++;
-					const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
-					const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
-					const correctVal = (cell.value || "").toLowerCase();
-					
-					if (userVal && (userVal.includes(correctVal) || correctVal.includes(userVal))) {
-						correctCells++;
-					}
-				});
-			});
-			
-			if (totalTaskCells > 0) {
-				score += Math.round((correctCells / totalTaskCells) * q.points);
-			}
-		}
+        }
+
+        // Формируем объект для рендера
+        reviewItems.push({
+            text: q.text,
+            points: q.points,
+            isCorrect: isCorrect,
+            detail: detailText,
+            type: q.type
+        });
     });
 
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
     document.getElementById("score-display").innerText =
         `Итог: ${score} из ${maxScore} баллов (${percent}%)`;
+    
+    // Генерируем HTML списка разбора
+    const container = document.getElementById('review-list-container');
+    if (!container) return;
+
+    let html = '<ul class="tasks-list">'; // Используем тот же класс, что и в списке заданий
+    
+    reviewItems.forEach(item => {
+        let typeName = "";
+        if (item.type === 'multiple_choice') typeName = "[Выбор]";
+        else if (item.type === 'text_input') typeName = "[Текст]";
+        else if (item.type === 'table_fill') typeName = "[Таблица]";
+
+        // Определяем класс статуса для цветной полоски слева
+        const statusClass = item.isCorrect ? "status-correct" : "status-wrong";
+        
+        html += `
+            <li class="tasks-item ${statusClass}">
+                <div style="flex-grow:1; padding-left: 10px;">
+                    <span class="task-type-badge">${typeName}</span> 
+                    <strong>${item.text}</strong>
+                    <div style="margin-top:5px; font-size:13px; color:#666;">${item.detail}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">
+                    <span class="task-points">${item.points} балл</span>
+                    <span style="font-weight:bold; color:${item.isCorrect ? '#28a745' : '#dc3545'}; font-size:18px;">
+                        ${item.isCorrect ? '✓' : '✗'}
+                    </span>
+                </div>
+            </li>
+        `;
+    });
+    
+    html += '</ul>';
+    
+    container.innerHTML = html;
     showPage("results");
 }
 
@@ -402,48 +540,43 @@ async function loadAndRenderTasks() {
         } else {
             const isAdmin = currentUser && currentUser.role === 'admin';
 
-			// ... внутри loadAndRenderTasks ...
-			data.categories.forEach((cat, catIndex) => {
-				html += `<h4 style="color:#0056b3; margin-top:20px;">${cat.name}</h4>`;
-				html += '<ul style="list-style:none; padding-left:0;">';
-				
-				cat.questions.forEach((q, qIndexInCat) => {
-					let typeName = "";
-					if (q.type === 'multiple_choice') typeName = "[Выбор]";
-					else if (q.type === 'text_input') typeName = "[Текст]";
-					else if (q.type === 'table_fill') typeName = "[Таблица]";
-					
-					// Базовый элемент списка
-					let liHtml = `<li style="padding:8px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">`;
-					
-					// Текст вопроса слева
-					liHtml += `<div><strong>${typeName}</strong> ${q.text} 
-								<span style="color:#777; font-size:12px; margin-left:10px;">(${q.points} балл)</span></div>`;
-					
-					// Кнопки действий справа (только для админа)
-					if (isAdmin) {
-						liHtml += `
-							<div style="display:flex; gap:5px;">
-								<button onclick="editQuestion(${catIndex}, ${qIndexInCat})" 
-										class="btn-nav" 
-										style="background:#ffc107; color:black; border:none; padding:4px 8px; cursor:pointer; font-size:12px;">
-									Изменить
-								</button>
-								<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" 
-										class="btn-nav" 
-										style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px;">
-									Удалить
-								</button>
-							</div>
-						`;
-					}
-					
-					liHtml += `</li>`;
-					html += liHtml;
-				});
-				html += '</ul>';
-			});
-			// ... конец цикла ...
+            data.categories.forEach((cat, catIndex) => {
+                html += `<h4 class="task-category-header">${cat.name}</h4>`;
+                html += '<ul class="tasks-list">';
+                
+                cat.questions.forEach((q, qIndexInCat) => {
+                    let typeName = "";
+                    if (q.type === 'multiple_choice') typeName = "[Выбор]";
+                    else if (q.type === 'text_input') typeName = "[Текст]";
+                    else if (q.type === 'table_fill') typeName = "[Таблица]";
+                    
+                    html += `<li class="tasks-item">`;
+                    
+                    html += `<div style="flex-grow:1; padding-left: 10px;">
+                                <span class="task-type-badge">${typeName}</span> ${q.text} 
+                             </div>`;
+                    
+                    html += `<div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">`;
+                    html += `<span class="task-points">${q.points} балл</span>`;
+                    
+                    if (isAdmin) {
+                        html += `<button onclick="editQuestion(${catIndex}, ${qIndexInCat})" 
+                                         class="btn-nav" 
+                                         style="background:#ffc107; color:black; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">
+                                     Изменить
+                                 </button>`;
+                        html += `<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" 
+                                         class="btn-nav" 
+                                         style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">
+                                     Удалить
+                                 </button>`;
+                    }
+                    
+                    html += `</div></li>`;
+                });
+                
+                html += '</ul>';
+            });
         }
         
         container.innerHTML = html;
@@ -484,125 +617,18 @@ async function deleteQuestion(categoryId, questionIndex) {
     }
 }
 
-let editingContext = null; // Глобальная переменная для хранения контекста редактирования
-
-async function editQuestion(catIndex, qIndex) {
-    try {
-        // 1. Загружаем актуальные данные
-        const dataStr = await apiGet('questions');
-        const data = JSON.parse(dataStr);
-        
-        const category = data.categories[catIndex];
-        const question = category.questions[qIndex];
-        
-        if (!question) throw new Error("Вопрос не найден");
-
-        // 2. Сохраняем контекст для функции saveNewQuestion
-        editingContext = { catIndex, qIndex, originalData: data };
-
-        // 3. Открываем форму
-        toggleAddForm(true); // Принудительно открываем
-        
-        // 4. Заполняем базовые поля
-        document.getElementById('task-category').value = category.name;
-        document.getElementById('task-type').value = question.type;
-        document.getElementById('task-text').value = question.text;
-        document.getElementById('task-points').value = question.points;
-        
-        // Меняем заголовок формы и текст кнопки
-        const formTitle = document.querySelector('#add-form-container h4');
-        if(formTitle) formTitle.innerText = "Редактирование вопроса";
-        
-        const saveBtn = document.querySelector('#add-form-container button.btn-primary');
-        if(saveBtn) saveBtn.innerText = "Сохранить изменения";
-
-        // 5. Инициализируем динамические поля под тип вопроса
-        toggleTaskFields(); 
-        
-        // 6. Заполняем специфичные поля
-        setTimeout(() => fillSpecificFields(question), 100); // Небольшая задержка для рендера DOM
-
-    } catch (e) {
-        console.error(e);
-        alert("Ошибка загрузки данных для редактирования: " + e.message);
-    }
+// Функция редактирования вопроса (заглушка, так как полная реализация требует сложной формы)
+function editQuestion(catIndex, qIndex) {
+    alert("Функция редактирования пока в разработке. Используйте вкладку 'Редактор JSON'.");
 }
 
-function fillSpecificFields(q) {
-    if (q.type === 'multiple_choice') {
-        const list = document.getElementById('mc-options-list');
-        list.innerHTML = ''; // Очищаем дефолтные два варианта
-        
-        q.options.forEach(opt => {
-            addMcOption(opt); // Вызываем нашу хелпер-функцию, но передаем значение
-        });
-        
-        document.getElementById('mc-correct-index').value = q.correct_index;
-    } 
-    else if (q.type === 'text_input') {
-        document.getElementById('ti-accepted').value = q.accepted_answers.join(', ');
-    } 
-    else if (q.type === 'table_fill') {
-        document.getElementById('tf-headers').value = q.headers.join(', ');
-        
-        const rowsList = document.getElementById('tf-rows-list');
-        rowsList.innerHTML = ''; // Очищаем
-        
-        q.rows.forEach(r => {
-            addTfRowWithData(r); // Специальная функция для заполнения строки
-        });
-    }
-}
-
-// Хелперы для заполнения полей данными
-
-function addMcOption(value = "") {
-    const list = document.getElementById('mc-options-list');
-    const count = list.children.length + 1;
-    const div = document.createElement('div');
-    div.className = 'mc-option-row';
-    div.innerHTML = `
-        <input type="text" class="text-input mc-opt-val" value="${value}" placeholder="Вариант ${count}">
-        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button>
-    `;
-    list.appendChild(div);
-}
-
-function addTfRowWithData(rowData) {
-    const list = document.getElementById('tf-rows-list');
-    const idx = list.children.length;
-    const div = document.createElement('div');
-    div.style.marginBottom = '10px';
-    div.style.border = '1px solid #eee';
-    div.style.padding = '5px';
-    
-    div.innerHTML = `
-        <strong>Строка ${idx + 1}</strong><br>
-        <label>Метка:</label>
-        <input type="text" class="text-input tf-label" value="${rowData.label || ''}">
-        <label>Правильное значение:</label>
-        <input type="text" class="text-input tf-value" value="${rowData.correct_value || ''}">
-        <label style="display:block; margin-top:5px;">
-            <input type="checkbox" class="tf-is-hint" ${rowData.is_hint ? 'checked' : ''}> Это подсказка
-        </label>
-        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button>
-        <div style="clear:both;"></div>
-    `;
-    list.appendChild(div);
-}
-
-function toggleAddForm(forceOpen = false) {
+function toggleAddForm() {
     const form = document.getElementById('add-form-container');
-    
-    // Если принудительно открыть или форма скрыта -> показать
-    if (forceOpen || form.style.display === 'none') {
+    if (form.style.display === 'none') {
         form.style.display = 'block';
-        toggleTaskFields(); // Инициализируем пустые поля (если не редактируем)
+        toggleTaskFields();
     } else {
         form.style.display = 'none';
-        // При закрытии очищаем контекст, если пользователь передумал
-        editingContext = null; 
-        resetFormUI();
     }
 }
 
@@ -654,39 +680,23 @@ function addMcOption() {
 
 function addTfRow() {
     const list = document.getElementById('tf-rows-list');
-    const headersInput = document.getElementById('tf-headers').value.trim();
-    
-    if (!headersInput) {
-        alert("Сначала заполните заголовки колонок!");
-        return;
-    }
-    
-    const cols = headersInput.split(',');
     const idx = list.children.length;
-    
     const div = document.createElement('div');
-    div.style.marginBottom = '15px';
-    div.style.border = '1px solid #ddd';
-    div.style.padding = '10px';
-    div.style.background = '#fafafa';
+    div.style.marginBottom = '10px';
+    div.style.border = '1px solid #eee';
+    div.style.padding = '5px';
     
-    let cellsHtml = '';
-    cols.forEach((colName, i) => {
-        cellsHtml += `
-            <div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dotted #ccc;">
-                <label><b>Колонка ${i+1}: ${colName.trim()}</b></label><br>
-                <input type="text" class="text-input tf-cell-val" placeholder="Введите правильный ответ..." style="width:70%; display:inline-block;">
-                <label style="display:inline-block; margin-left:10px;">
-                    <input type="checkbox" class="tf-cell-hint"> Подсказка (ученик не вводит)
-                </label>
-            </div>
-        `;
-    });
-
     div.innerHTML = `
-        <strong>Строка ${idx + 1}</strong>
-        ${cellsHtml}
-        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">Удалить строку</button>
+        <strong>Строка ${idx + 1}</strong><br>
+        <label>Метка:</label>
+        <input type="text" class="text-input tf-label" placeholder="Напр.: Мышечная ткань">
+        <label>Правильное значение:</label>
+        <input type="text" class="text-input tf-value" placeholder="Напр.: Сокращение">
+        <label style="display:block; margin-top:5px;">
+            <input type="checkbox" class="tf-is-hint"> Это подсказка
+        </label>
+        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button>
+        <div style="clear:both;"></div>
     `;
     list.appendChild(div);
 }
@@ -704,7 +714,6 @@ async function saveNewQuestion() {
         return;
     }
 
-    // Собираем объект вопроса (логика та же, что и раньше)
     let questionObj = { id: Date.now(), type: type, text: text, points: points };
 
     try {
@@ -746,71 +755,25 @@ async function saveNewQuestion() {
             });
         }
 
-        // --- ЛОГИКА СОХРАНЕНИЯ ---
-        
-        // 1. Получаем свежие данные с сервера
         const currentJsonStr = await apiGet('questions');
         const data = JSON.parse(currentJsonStr);
 
-        if (editingContext) {
-            // РЕЖИМ РЕДАКТИРОВАНИЯ
-            const catIndex = editingContext.catIndex;
-            const qIndex = editingContext.qIndex;
-            
-            // Проверяем, не изменилась ли категория (название)
-            // Если название категории изменилось, нам нужно найти новую категорию или создать её
-            let targetCat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
-            
-            if (!targetCat) {
-                // Категории с таким именем больше нет (или было опечатка/изменение имени)
-                // Создаем новую
-                targetCat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
-                data.categories.push(targetCat);
-                
-                // Перемещаем вопрос в новую категорию, удаляя из старой
-                const oldCat = data.categories[catIndex];
-                if(oldCat) {
-                     oldCat.questions.splice(qIndex, 1); // Удаляем из старой
-                }
-                targetCat.questions.push(questionObj); // Добавляем в новую
-                
-            } else {
-                // Категория существует. Обновляем вопрос по индексу.
-                // ВАЖНО: Индекс мог измениться, если кто-то другой правил файл параллельно.
-                // Но для школьного проекта обычно достаточно простого splice/push.
-                
-                // Находим старый вопрос по ID, чтобы быть уверенным
-                const existingQIndex = targetCat.questions.findIndex(q => q.id === editingContext.originalData.categories[catIndex].questions[qIndex].id);
-                
-                if (existingQIndex !== -1) {
-                    targetCat.questions[existingQIndex] = questionObj; // Заменяем
-                } else {
-                    targetCat.questions.push(questionObj); // Добавляем, если не нашли (странность)
-                }
-            }
-
-        } else {
-            // РЕЖИМ ДОБАВЛЕНИЯ (старая логика)
-            let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
-            if (!cat) {
-                cat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
-                data.categories.push(cat);
-            }
-            cat.questions.push(questionObj);
+        let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
+        if (!cat) {
+            cat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
+            data.categories.push(cat);
         }
 
-        // 2. Отправляем обновленный JSON на GitHub
+        cat.questions.push(questionObj);
+
         await apiPut('questions', JSON.stringify(data, null, 2));
 
-        statusEl.innerText = editingContext ? "Вопрос успешно обновлен!" : "Вопрос успешно добавлен!";
+        statusEl.innerText = "Вопрос успешно добавлен!";
         statusEl.style.color = "green";
         
-        // 3. Сбрасываем контекст и закрываем форму
         setTimeout(() => {
-            editingContext = null; // Важно очистить!
-            resetFormUI();         // Возвращаем заголовки/кнопки в исходное состояние
-            toggleAddForm(false);  // Закрываем форму
-            loadAndRenderTasks();  // Обновляем список
+            toggleAddForm();
+            loadAndRenderTasks();
         }, 1000);
 
     } catch (e) {
@@ -820,28 +783,18 @@ async function saveNewQuestion() {
     }
 }
 
-// Вспомогательная функция для сброса UI формы после редактирования
-function resetFormUI() {
-    const formTitle = document.querySelector('#add-form-container h4');
-    if(formTitle) formTitle.innerText = "Новый вопрос";
-    
-    const saveBtn = document.querySelector('#add-form-container button.btn-primary');
-    if(saveBtn) saveBtn.innerText = "Сохранить вопрос";
-}
-
 // === ИНИЦИАЛИЗАЦИЯ ===
 window.onload = async () => {
-    await loadData();
+    await loadData(); 
     
     const savedUser = localStorage.getItem("biology_user");
     if (savedUser) {
         try {
             currentUser = JSON.parse(savedUser);
+            updateUIForLoggedInUser();
         } catch {
             currentUser = null;
             localStorage.removeItem("biology_user");
         }
     }
-    
-    updateUIForLoggedInUser();
 };
