@@ -228,47 +228,72 @@ function saveTableAnswer(qId, key, val) {
 function nextQ() { if (currentQIndex < questions.length - 1) { currentQIndex++; renderQ(); } }
 function prevQ() { if (currentQIndex > 0) { currentQIndex--; renderQ(); } }
 
-// === ПОДСЧЁТ РЕЗУЛЬТАТА ===
 async function finishTest() {
-    let score = 0, maxScore = 0;
+    let score = 0;
+    let maxScore = 0;
     const reviewItems = [];
+
     questions.forEach(q => {
         maxScore += q.points;
         const ans = userAnswers[q.id];
-        let isCorrect = false, detailText = "";
+        let isCorrect = false;
+        let detailText = "";
+        let earnedPoints = 0; // Баллы, заработанные за этот конкретный вопрос
+
         if (q.type === "multiple_choice") {
             isCorrect = (ans === q.correct_index);
-            detailText = `Ваш ответ: ${ans !== undefined ? q.options[ans] : "(нет ответа)"} | Правильный: ${q.options[q.correct_index]}`;
-        } else if (q.type === "text_input") {
+            earnedPoints = isCorrect ? q.points : 0;
+            const userOpt = (ans !== undefined && ans !== null) ? q.options[ans] : "(нет ответа)";
+            const correctOpt = q.options[q.correct_index];
+            detailText = `Ваш ответ: ${userOpt} | Правильный: ${correctOpt}`;
+        } 
+        else if (q.type === "text_input") {
             if (ans && q.accepted_answers) {
-                isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === String(ans).toLowerCase().trim());
+                const normalizedAns = String(ans).toLowerCase().trim();
+                isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === normalizedAns);
             }
+            earnedPoints = isCorrect ? q.points : 0;
             detailText = `Ваш ответ: ${ans || "(пусто)"} | Правильные: ${(q.accepted_answers || []).join(", ")}`;
-        } else if (q.type === "table_fill" && ans) {
-            let correctCells = 0, totalTaskCells = 0; 
+        } 
+        else if (q.type === "table_fill" && ans) {
+            let correctCells = 0;
+            let totalTaskCells = 0; 
+            
             q.rows.forEach((r, rowIndex) => {
-                if (r.cells) {
-                    r.cells.forEach((cell, colIndex) => {
-                        if (cell.is_hint) return; 
-                        totalTaskCells++;
-                        const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
-                        const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
-                        const correctVal = (cell.value || "").toLowerCase().trim();
-                        if (correctVal === "") return;
-                        if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) {
-                            correctCells++;
-                        }
-                    });
-                }
+                r.cells.forEach((cell, colIndex) => {
+                    if (cell.is_hint) return; 
+                    totalTaskCells++;
+                    const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+                    const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
+                    const correctVal = (cell.value || "").toLowerCase().trim();
+                    
+                    if (correctVal === "") return; 
+                    if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) {
+                        correctCells++;
+                    }
+                });
             });
+            
             if (totalTaskCells > 0) {
-                score += Math.round((correctCells / totalTaskCells) * q.points);
-                if (correctCells === totalTaskCells) isCorrect = true;
+                earnedPoints = Math.round((correctCells / totalTaskCells) * q.points);
+                if (correctCells === totalTaskCells) {
+                    isCorrect = true;
+                }
             }
             detailText = `Верно ячеек: ${correctCells}/${totalTaskCells}`;
         }
-        if (isCorrect) score += q.points;
-        reviewItems.push({ text: q.text, points: q.points, isCorrect, detail: detailText, type: q.type });
+
+        // Добавляем баллы ТОЛЬКО ОДИН РАЗ
+        score += earnedPoints;
+
+        reviewItems.push({
+            text: q.text,
+            points: q.points,
+            earned: earnedPoints,
+            isCorrect: isCorrect,
+            detail: detailText,
+            type: q.type
+        });
     });
 
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
@@ -283,12 +308,17 @@ async function finishTest() {
             html += `
                 <li class="tasks-item ${statusClass}">
                     <div style="flex-grow:1; padding-left: 10px;">
-                        <span class="task-type-badge">${typeName}</span> <strong>${item.text}</strong>
-                        <div style="margin-top:5px; font-size:13px; color:var(--text-light);">${item.detail}</div>
+                        <span class="task-type-badge">${typeName}</span> 
+                        <strong>${item.text}</strong>
+                        <div style="margin-top:5px; font-size:13px; color:var(--text-light);">
+                            ${item.detail} <br>
+                            <span style="color:var(--accent);">Получено баллов: ${item.earned} из ${item.points}</span>
+                        </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">
-                        <span class="task-points">${item.points} балл</span>
-                        <span style="font-weight:bold; color:${item.isCorrect ? '#28a745' : '#dc3545'}; font-size:18px;">${item.isCorrect ? '✓' : '✗'}</span>
+                        <span style="font-weight:bold; color:${item.isCorrect ? '#28a745' : '#dc3545'}; font-size:18px;">
+                            ${item.isCorrect ? '✓' : '✗'}
+                        </span>
                     </div>
                 </li>`;
         });
@@ -301,7 +331,9 @@ async function finishTest() {
             let currentHistory = await loadUserHistory(currentUser.login);
             Object.assign(currentHistory, userAnswers);
             await saveUserHistory(currentUser.login, currentHistory);
-        } catch (e) { console.error("Не удалось сохранить историю:", e); }
+        } catch (e) {
+            console.error("Не удалось сохранить историю:", e);
+        }
     }
     showPage("results");
 }
@@ -483,13 +515,17 @@ function fillSpecificFields(q) {
             list.appendChild(div);
         });
         document.getElementById('mc-correct-index').value = q.correct_index;
-    } else if (q.type === 'text_input') {
+    } 
+    else if (q.type === 'text_input') {
         document.getElementById('ti-accepted').value = (q.accepted_answers || []).join(', ');
-    } else if (q.type === 'table_fill') {
+    } 
+    else if (q.type === 'table_fill') {
         document.getElementById('tf-headers').value = (q.headers || []).join(', ');
         const rowsList = document.getElementById('tf-rows-list');
         rowsList.innerHTML = '';
+        
         if (q.rows && q.rows[0] && q.rows[0].cells) {
+            // Новый формат
             q.rows.forEach((r, rowIdx) => {
                 const div = document.createElement('div');
                 div.className = 'tf-row-block';
@@ -501,6 +537,7 @@ function fillSpecificFields(q) {
                 rowsList.appendChild(div);
             });
         } else if (q.rows && q.rows[0] && q.rows[0].label !== undefined) {
+            // Старый формат
             q.rows.forEach(r => {
                 const div = document.createElement('div');
                 div.className = 'tf-row-block';
