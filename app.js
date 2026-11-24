@@ -1,14 +1,14 @@
 // === КОНСТАНТЫ ===
-const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev"; // БЕЗ слэша!
+const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev";
 const ADMIN_KEY  = "abema2342";
 
 // === ГЛОБАЛЬНОЕ СОСТОЯНИЕ ===
-let allCategories = []; // Полная структура категорий для выбора тем
-let questions = [];     // Плоский список вопросов текущего теста
+let allCategories = [];
+let questions = [];
 let currentUser = null;
 let currentQIndex = 0;
 let userAnswers = {};
-let editingContext = null; // { catIndex, qIndex, questionId } или null
+let editingContext = null;
 
 // === ТРАНСПОРТ ДО WORKER ===
 async function apiGet(route) {
@@ -20,10 +20,7 @@ async function apiGet(route) {
 async function apiPut(route, contentStr) {
     const r = await fetch(`${WORKER_URL}/api/${route}`, {
         method: "PUT",
-        headers: { 
-            "X-Admin-Key": ADMIN_KEY, 
-            "Content-Type": "text/plain;charset=UTF-8" 
-        },
+        headers: { "X-Admin-Key": ADMIN_KEY, "Content-Type": "text/plain;charset=UTF-8" },
         body: contentStr
     });
     const txt = await r.text();
@@ -31,39 +28,26 @@ async function apiPut(route, contentStr) {
     return txt;
 }
 
-// === ИСТОРИЯ ОТВЕТОВ (ГЛОБАЛЬНОЕ ХРАНЕНИЕ) ===
+// === ИСТОРИЯ ОТВЕТОВ ===
 async function loadUserHistory(login) {
     try {
         const res = await fetch(`${WORKER_URL}/api/results/${login}`);
-        if (!res.ok) return {}; 
+        if (!res.ok) return {};
         return JSON.parse(await res.text());
-    } catch (e) {
-        console.error("Ошибка загрузки истории:", e);
-        return {};
-    }
+    } catch (e) { return {}; }
 }
 
 async function saveUserHistory(login, historyData) {
-    try {
-        await apiPut(`results/${login}`, JSON.stringify(historyData, null, 2));
-    } catch (e) {
-        console.error("Ошибка сохранения истории:", e);
-    }
+    try { await apiPut(`results/${login}`, JSON.stringify(historyData, null, 2)); } 
+    catch (e) { console.error("Ошибка сохранения истории:", e); }
 }
 
 // === ЗАГРУЗКА ДАННЫХ ===
 async function loadData() {
     try {
         const data = JSON.parse(await apiGet("questions"));
-        
-        // Сохраняем полную структуру категорий
         allCategories = data.categories || [];
-        
-        // Плоский список вопросов (для старых функций, если они еще используются)
         questions = allCategories.flatMap(c => c.questions);
-        
-        console.log(`Загружено ${allCategories.length} категорий, всего ${questions.length} вопросов`);
-        
     } catch (e) {
         console.error("Ошибка загрузки:", e);
         alert("Не удалось загрузить вопросы.");
@@ -74,24 +58,16 @@ async function loadData() {
 async function performLogin() {
     const l = document.getElementById("login-input").value.trim();
     const p = document.getElementById("pass-input").value.trim();
-    
-    if (!l || !p) {
-        alert("Введите логин и пароль");
-        return;
-    }
-    
+    if (!l || !p) { alert("Введите логин и пароль"); return; }
     try {
         const users = JSON.parse(await apiGet("users"));
         const user = users.find(u => u.login === l && u.password === p);
-        
         if (user) {
             currentUser = user;
             localStorage.setItem("biology_user", JSON.stringify(user));
             updateUIForLoggedInUser();
             showPage("home");
-        } else {
-            alert("Неверный логин или пароль");
-        }
+        } else { alert("Неверный логин или пароль"); }
     } catch (e) {
         console.error(e);
         alert("Ошибка загрузки пользователей");
@@ -103,7 +79,7 @@ function logout() {
     location.reload();
 }
 
-// === ОБНОВЛЕНИЕ UI ПОД ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ===
+// === ОБНОВЛЕНИЕ UI ===
 function updateUIForLoggedInUser() {
     const authSection = document.getElementById("auth-section");
     const userInfo = document.getElementById("user-info");
@@ -116,7 +92,6 @@ function updateUIForLoggedInUser() {
         if (authSection) authSection.style.display = "none";
         if (userInfo) userInfo.style.display = "block";
         if (nameSpan) nameSpan.innerText = currentUser.name;
-        
         const isAdmin = currentUser.role === "admin";
         if (adminLink) adminLink.style.display = isAdmin ? "block" : "none";
         if (accountsLink) accountsLink.style.display = isAdmin ? "block" : "none";
@@ -130,114 +105,70 @@ function updateUIForLoggedInUser() {
     }
 }
 
-// === НАВИГАЦИЯ ПО СТРАНИЦАМ ===
+// === НАВИГАЦИЯ ===
 function showPage(id) {
     document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
     const target = document.getElementById(id);
     if (target) target.classList.add("active");
 }
+function goHome() { showPage("home"); }
 
-function goHome() {
-    showPage("home");
-}
-
-// === ЛОГИКА ВЫБОРА ТЕМ И СТАРТА ТЕСТА ===
-
-// Кнопка в меню "Начать тест" -> Показывает экран выбора
+// === ТЕСТ: ВЫБОР ТЕМ ===
 function startTest() {
-    if (!currentUser) {
-        alert("Сначала войдите в аккаунт!");
-        return;
-    }
-    if (!allCategories || allCategories.length === 0) {
-        alert("Нет доступных вопросов.");
-        return;
-    }
-
-    // Переключаемся на страницу теста
+    if (!currentUser) { alert("Сначала войдите в аккаунт!"); return; }
+    if (!allCategories || allCategories.length === 0) { alert("Нет доступных вопросов."); return; }
     showPage("contest");
-    
-    // Показываем только экран выбора, скрываем сам тест
     const topicScreen = document.getElementById('topic-selection-screen');
     const testScreen = document.getElementById('test-running-screen');
-    
     if (topicScreen) topicScreen.style.display = 'block';
     if (testScreen) testScreen.style.display = 'none';
-    
-    renderTopicSelection(); // Рисуем чекбоксы
+    renderTopicSelection();
 }
 
-// Функция отрисовки чекбоксов тем
 function renderTopicSelection() {
     const container = document.getElementById('topics-checkbox-list');
     if (!container) return;
-
     let html = '';
     allCategories.forEach((cat, index) => {
         html += `
-            <label style="display:block; margin:5px 0; cursor:pointer; padding:5px; border-radius:3px; transition:background 0.2s;" onmouseover="this.style.background='#eef'" onmouseout="this.style.background='transparent'">
+            <label class="topic-check-label">
                 <input type="checkbox" class="topic-check" value="${index}" checked> 
                 <strong>${cat.name}</strong> (${cat.questions.length} вопр.)
             </label>
         `;
     });
-    
     container.innerHTML = html;
 }
 
-// Запуск теста по выбранным темам
 function startSelectedTest() {
     const checkboxes = document.querySelectorAll('.topic-check:checked');
-    if (checkboxes.length === 0) {
-        alert("Выберите хотя бы одну тему!");
-        return;
-    }
-    
-    // Собираем вопросы из выбранных категорий
+    if (checkboxes.length === 0) { alert("Выберите хотя бы одну тему!"); return; }
     let selectedQuestions = [];
     checkboxes.forEach(cb => {
-        const catIndex = parseInt(cb.value);
-        const cat = allCategories[catIndex];
-        if (cat && cat.questions) {
-            selectedQuestions = selectedQuestions.concat(cat.questions);
-        }
+        const cat = allCategories[parseInt(cb.value)];
+        if (cat && cat.questions) selectedQuestions = selectedQuestions.concat(cat.questions);
     });
-    
-    if (selectedQuestions.length === 0) {
-        alert("В выбранных темах нет вопросов.");
-        return;
-    }
-    
-    // Подменяем глобальный массив вопросов для текущего теста
+    if (selectedQuestions.length === 0) { alert("В выбранных темах нет вопросов."); return; }
     questions = selectedQuestions;
     currentQIndex = 0;
     userAnswers = {}; 
-    
-    // Переключаем экраны
     document.getElementById('topic-selection-screen').style.display = 'none';
     document.getElementById('test-running-screen').style.display = 'block';
-    
     renderQ();
 }
 
-// Запуск полного теста (все вопросы подряд)
 function startFullTest() {
-    // Берем все вопросы из всех категорий
     questions = allCategories.flatMap(c => c.questions);
     currentQIndex = 0;
     userAnswers = {};
-    
-    // Переключаем экраны
     document.getElementById('topic-selection-screen').style.display = 'none';
     document.getElementById('test-running-screen').style.display = 'block';
-    
     renderQ();
 }
 
 // === ОТРИСОВКА ВОПРОСА ===
 function renderQ() {
     if (!questions || questions.length === 0) return;
-    
     const q = questions[currentQIndex];
     let html = `<div class="question-block"><h3>${q.text}</h3>`;
 
@@ -245,288 +176,169 @@ function renderQ() {
         html += '<div class="options">';
         q.options.forEach((opt, i) => {
             const checked = userAnswers[q.id] === i ? "checked" : "";
-            html += `<label><input type="radio" name="ans-${q.id}" value="${i}" ${checked} onchange="saveAnswer(${q.id}, ${i})"> ${opt}</label><br>`;
+            html += `<label><input type="radio" name="ans-${q.id}" value="${i}" ${checked} onchange="saveAnswer(${q.id}, ${i})"> ${opt}</label>`;
         });
         html += "</div>";
     } else if (q.type === "text_input") {
         const val = userAnswers[q.id] || "";
         html += `<input type="text" class="text-input" value="${val}" placeholder="Введите ответ..." onchange="saveAnswer(${q.id}, this.value)">`;
-	} else if (q.type === "table_fill") {
-		html += `<table class="table-fill">`;
-		
-		// Шапка таблицы
-		if (q.headers && q.headers.length > 0) {
-			html += `<thead><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
-		}
-		
-		html += `<tbody>`;
-		
-		// Поддержка СТАРОГО формата (label/correct_value/key)
-		const isOldFormat = q.rows && q.rows.length > 0 && q.rows[0].label !== undefined && !q.rows[0].cells;
-		
-		q.rows.forEach((r, rowIndex) => {
-			html += `<tr>`;
-			
-			if (isOldFormat) {
-				// Старый формат: одна метка + одно поле ввода
-				const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
-				html += `<td>${r.label || ""}</td>`;
-				html += `<td><input type="text" class="text-input" value="${val}" 
-						 onchange="saveTableAnswer('${q.id}', '${r.key}', this.value)" 
-						 placeholder="..."></td>`;
-			} else {
-				// Новый формат: массив cells
-				r.cells.forEach((cell, colIndex) => {
-					const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
-					
-					if (cell.is_hint) {
-						html += `<td style="background:#eef5ff; color:#004085; font-weight:bold;">${cell.value}</td>`;
-					} else {
-						const userVal = (userAnswers[q.id] && userAnswers[q.id][uniqueKey]) || "";
-						html += `<td><input type="text" class="text-input" value="${userVal}" 
-								 onchange="saveTableAnswer('${q.id}', '${uniqueKey}', this.value)" 
-								 placeholder="..."></td>`;
-					}
-				});
-			}
-			
-			html += `</tr>`;
-		});
-		
-		html += `</tbody></table>`;
-	}
-
+    } else if (q.type === "table_fill") {
+        html += `<table class="table-fill">`;
+        if (q.headers && q.headers.length > 0) {
+            html += `<thead><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
+        }
+        html += `<tbody>`;
+        const isOldFormat = q.rows && q.rows.length > 0 && q.rows[0].label !== undefined && !q.rows[0].cells;
+        q.rows.forEach((r, rowIndex) => {
+            html += `<tr>`;
+            if (isOldFormat) {
+                const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
+                html += `<td>${r.label || ""}</td>`;
+                html += `<td><input type="text" class="text-input" value="${val}" onchange="saveTableAnswer('${q.id}', '${r.key}', this.value)" placeholder="..."></td>`;
+            } else {
+                r.cells.forEach((cell, colIndex) => {
+                    const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+                    if (cell.is_hint) {
+                        html += `<td class="hint-cell">${cell.value}</td>`;
+                    } else {
+                        const userVal = (userAnswers[q.id] && userAnswers[q.id][uniqueKey]) || "";
+                        html += `<td><input type="text" class="text-input" value="${userVal}" onchange="saveTableAnswer('${q.id}', '${uniqueKey}', this.value)" placeholder="..."></td>`;
+                    }
+                });
+            }
+            html += `</tr>`;
+        });
+        html += `</tbody></table>`;
+    }
     html += "</div>";
     document.getElementById("q-container").innerHTML = html;
     document.getElementById("counter").innerText = `${currentQIndex + 1} / ${questions.length}`;
     
-    // Блокировка кнопок навигации
     const btnPrev = document.getElementById('btn-prev');
     const btnNext = document.getElementById('btn-next');
     if (btnPrev) btnPrev.disabled = currentQIndex === 0;
     if (btnNext) btnNext.disabled = currentQIndex === questions.length - 1;
 }
 
-function saveAnswer(qId, val) {
-    userAnswers[qId] = val;
-}
-
+function saveAnswer(qId, val) { userAnswers[qId] = val; }
 function saveTableAnswer(qId, key, val) {
     if (!userAnswers[qId]) userAnswers[qId] = {};
     userAnswers[qId][key] = val;
 }
-
-function nextQ() {
-    if (currentQIndex < questions.length - 1) {
-        currentQIndex++;
-        renderQ();
-    }
-}
-
-function prevQ() {
-    if (currentQIndex > 0) {
-        currentQIndex--;
-        renderQ();
-    }
-}
+function nextQ() { if (currentQIndex < questions.length - 1) { currentQIndex++; renderQ(); } }
+function prevQ() { if (currentQIndex > 0) { currentQIndex--; renderQ(); } }
 
 // === ПОДСЧЁТ РЕЗУЛЬТАТА ===
 async function finishTest() {
-    let score = 0;
-    let maxScore = 0;
-    
-    // 1. Собираем данные для отображения разбора
+    let score = 0, maxScore = 0;
     const reviewItems = [];
-
     questions.forEach(q => {
         maxScore += q.points;
         const ans = userAnswers[q.id];
-        let isCorrect = false;
-        let detailText = "";
-
+        let isCorrect = false, detailText = "";
         if (q.type === "multiple_choice") {
             isCorrect = (ans === q.correct_index);
-            const userOpt = (ans !== undefined && ans !== null) ? q.options[ans] : "(нет ответа)";
-            const correctOpt = q.options[q.correct_index];
-            detailText = `Ваш ответ: ${userOpt} | Правильный: ${correctOpt}`;
-        } 
-        else if (q.type === "text_input") {
+            detailText = `Ваш ответ: ${ans !== undefined ? q.options[ans] : "(нет ответа)"} | Правильный: ${q.options[q.correct_index]}`;
+        } else if (q.type === "text_input") {
             if (ans && q.accepted_answers) {
-                const normalizedAns = String(ans).toLowerCase().trim();
-                isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === normalizedAns);
+                isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === String(ans).toLowerCase().trim());
             }
             detailText = `Ваш ответ: ${ans || "(пусто)"} | Правильные: ${(q.accepted_answers || []).join(", ")}`;
-        } 
-		else if (q.type === "table_fill" && ans) {
-			let correctCells = 0;
-			let totalTaskCells = 0; 
-			
-			q.rows.forEach((r, rowIndex) => {
-				r.cells.forEach((cell, colIndex) => {
-					if (cell.is_hint) return; 
-					totalTaskCells++;
-					const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
-					const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
-					const correctVal = (cell.value || "").toLowerCase().trim();
-					
-					if (correctVal === "") return; // пропускаем пустые правильные ответы
-					
-					if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) {
-						correctCells++;
-					}
-				});
-			});
-			
-			if (totalTaskCells > 0) {
-				score += Math.round((correctCells / totalTaskCells) * q.points);
-			}
-			
-			// ВОТ ЭТО БЫЛО ПРОПУЩЕНО:
-			if (totalTaskCells > 0 && correctCells === totalTaskCells) {
-				isCorrect = true;
-			}
-			
-			detailText = `Верно ячеек: ${correctCells}/${totalTaskCells}`;
-		}
-
-        if (isCorrect) {
-            score += q.points;
+        } else if (q.type === "table_fill" && ans) {
+            let correctCells = 0, totalTaskCells = 0; 
+            q.rows.forEach((r, rowIndex) => {
+                if (r.cells) {
+                    r.cells.forEach((cell, colIndex) => {
+                        if (cell.is_hint) return; 
+                        totalTaskCells++;
+                        const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+                        const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
+                        const correctVal = (cell.value || "").toLowerCase().trim();
+                        if (correctVal === "") return;
+                        if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) {
+                            correctCells++;
+                        }
+                    });
+                }
+            });
+            if (totalTaskCells > 0) {
+                score += Math.round((correctCells / totalTaskCells) * q.points);
+                if (correctCells === totalTaskCells) isCorrect = true;
+            }
+            detailText = `Верно ячеек: ${correctCells}/${totalTaskCells}`;
         }
-
-        // Формируем объект для рендера
-        reviewItems.push({
-            text: q.text,
-            points: q.points,
-            isCorrect: isCorrect,
-            detail: detailText,
-            type: q.type
-        });
+        if (isCorrect) score += q.points;
+        reviewItems.push({ text: q.text, points: q.points, isCorrect, detail: detailText, type: q.type });
     });
 
-    // 2. Расчет процентов и вывод итогового счета
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-    document.getElementById("score-display").innerText =
-        `Итог: ${score} из ${maxScore} баллов (${percent}%)`;
+    document.getElementById("score-display").innerText = `Итог: ${score} из ${maxScore} баллов (${percent}%)`;
     
-    // 3. Генерация HTML списка разбора (в стиле вкладки "Все задания")
     const container = document.getElementById('review-list-container');
     if (container) {
         let html = '<ul class="tasks-list">'; 
-        
         reviewItems.forEach(item => {
-            let typeName = "";
-            if (item.type === 'multiple_choice') typeName = "[Выбор]";
-            else if (item.type === 'text_input') typeName = "[Текст]";
-            else if (item.type === 'table_fill') typeName = "[Таблица]";
-
-            // Определяем класс статуса для цветной полоски слева
+            let typeName = item.type === 'multiple_choice' ? "[Выбор]" : item.type === 'text_input' ? "[Текст]" : "[Таблица]";
             const statusClass = item.isCorrect ? "status-correct" : "status-wrong";
-            
             html += `
                 <li class="tasks-item ${statusClass}">
                     <div style="flex-grow:1; padding-left: 10px;">
-                        <span class="task-type-badge">${typeName}</span> 
-                        <strong>${item.text}</strong>
-                        <div style="margin-top:5px; font-size:13px; color:#666;">${item.detail}</div>
+                        <span class="task-type-badge">${typeName}</span> <strong>${item.text}</strong>
+                        <div style="margin-top:5px; font-size:13px; color:var(--text-light);">${item.detail}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">
                         <span class="task-points">${item.points} балл</span>
-                        <span style="font-weight:bold; color:${item.isCorrect ? '#28a745' : '#dc3545'}; font-size:18px;">
-                            ${item.isCorrect ? '✓' : '✗'}
-                        </span>
+                        <span style="font-weight:bold; color:${item.isCorrect ? '#28a745' : '#dc3545'}; font-size:18px;">${item.isCorrect ? '✓' : '✗'}</span>
                     </div>
-                </li>
-            `;
+                </li>`;
         });
-        
         html += '</ul>';
         container.innerHTML = html;
     }
 
-    // 4. СОХРАНЕНИЕ ИСТОРИИ НА СЕРВЕР (GitHub через Worker)
     if (currentUser) {
         try {
-            // Загружаем старую историю пользователя
             let currentHistory = await loadUserHistory(currentUser.login);
-            
-            // Обновляем ответы в истории новыми данными
             Object.assign(currentHistory, userAnswers);
-            
-            // Сохраняем обратно
             await saveUserHistory(currentUser.login, currentHistory);
-        } catch (e) {
-            console.error("Не удалось сохранить историю:", e);
-            // Не блокируем показ результатов, если сохранение упало
-        }
+        } catch (e) { console.error("Не удалось сохранить историю:", e); }
     }
-
-    // 5. Переключение на страницу результатов
     showPage("results");
 }
 
-// === АДМИН: РЕДАКТОР ВОПРОСОВ ===
+// === АДМИН: РЕДАКТОР И АККАУНТЫ ===
 function openEditor() {
     showPage("editor");
-    apiGet("questions")
-        .then(t => { document.getElementById("editor-area").value = t; })
+    apiGet("questions").then(t => { document.getElementById("editor-area").value = t; })
         .catch(e => { document.getElementById("save-status").innerText = "Ошибка: " + e.message; });
 }
 
 async function saveToGithub() {
     const content = document.getElementById("editor-area").value;
     const statusEl = document.getElementById("save-status");
-    
-    try {
-        JSON.parse(content);
-    } catch {
-        statusEl.innerText = "Ошибка: невалидный JSON";
-        statusEl.style.color = "red";
-        return;
-    }
-    
+    try { JSON.parse(content); } catch { statusEl.innerText = "Ошибка: невалидный JSON"; statusEl.style.color = "red"; return; }
     try {
         await apiPut("questions", content);
-        statusEl.innerText = "Сохранено";
-        statusEl.style.color = "green";
-    } catch (e) {
-        statusEl.innerText = "Ошибка: " + e.message;
-        statusEl.style.color = "red";
-    }
+        statusEl.innerText = "Сохранено"; statusEl.style.color = "green";
+    } catch (e) { statusEl.innerText = "Ошибка: " + e.message; statusEl.style.color = "red"; }
 }
 
-// === АДМИН: УПРАВЛЕНИЕ АККАУНТАМИ ===
 async function openAccountsManager() {
     showPage("accounts-page");
     let users;
-    try {
-        users = JSON.parse(await apiGet("users"));
-    } catch (e) {
-        document.getElementById("accounts-container").innerHTML =
-            `<p style="color:red;">Ошибка загрузки: ${e.message}</p>`;
-        return;
+    try { users = JSON.parse(await apiGet("users")); } catch (e) {
+        document.getElementById("accounts-container").innerHTML = `<p style="color:red;">Ошибка: ${e.message}</p>`; return;
     }
-
     let html = "<h3>Список аккаунтов</h3><table class=\"table-fill\"><tr><th>Логин</th><th>Имя</th><th>Роль</th><th>Действия</th></tr>";
     users.forEach((u, index) => {
-        html += `<tr>
-            <td>${u.login}</td>
-            <td>${u.name}</td>
-            <td>${u.role}</td>
-            <td><button onclick="deleteAccount(${index})" class="btn-nav" style="background:#d9534f;color:#fff;">Удалить</button></td>
-        </tr>`;
+        html += `<tr><td>${u.login}</td><td>${u.name}</td><td>${u.role}</td><td><button onclick="deleteAccount(${index})" class="btn-nav" style="background:#d9534f;color:#fff;">Удалить</button></td></tr>`;
     });
-    html += "</table><br><hr><h4>Добавить новый аккаунт</h4>";
-    html += `
+    html += `</table><br><hr><h4>Добавить новый аккаунт</h4>
         <input type="text" id="new-login" placeholder="Логин" class="text-input">
         <input type="password" id="new-pass" placeholder="Пароль" class="text-input">
         <input type="text" id="new-name" placeholder="Отображаемое имя" class="text-input">
-        <select id="new-role" class="text-input">
-            <option value="user">Пользователь</option>
-            <option value="admin">Администратор</option>
-        </select>
-        <button onclick="addAndSaveAccount()" class="btn-primary">Добавить и сохранить</button>
-        <p id="acc-status"></p>
-    `;
+        <select id="new-role" class="text-input"><option value="user">Пользователь</option><option value="admin">Администратор</option></select>
+        <button onclick="addAndSaveAccount()" class="btn-primary">Добавить и сохранить</button><p id="acc-status"></p>`;
     document.getElementById("accounts-container").innerHTML = html;
 }
 
@@ -536,173 +348,88 @@ async function addAndSaveAccount() {
     const name = document.getElementById("new-name").value.trim();
     const role = document.getElementById("new-role").value;
     const statusEl = document.getElementById("acc-status");
-
-    if (!login || !pass || !name) {
-        statusEl.innerText = "Заполните все поля";
-        statusEl.style.color = "red";
-        return;
-    }
-
+    if (!login || !pass || !name) { statusEl.innerText = "Заполните все поля"; statusEl.style.color = "red"; return; }
     let users;
-    try {
-        users = JSON.parse(await apiGet("users"));
-    } catch (e) {
-        statusEl.innerText = "Ошибка загрузки: " + e.message;
-        statusEl.style.color = "red";
-        return;
-    }
-
-    if (users.some(u => u.login === login)) {
-        statusEl.innerText = "Такой логин уже существует";
-        statusEl.style.color = "red";
-        return;
-    }
-
+    try { users = JSON.parse(await apiGet("users")); } catch (e) { statusEl.innerText = "Ошибка: " + e.message; statusEl.style.color = "red"; return; }
+    if (users.some(u => u.login === login)) { statusEl.innerText = "Такой логин уже существует"; statusEl.style.color = "red"; return; }
     users.push({ login, password: pass, name, role });
-
     try {
         await apiPut("users", JSON.stringify(users, null, 2));
-        statusEl.innerText = "Добавлено и сохранено";
-        statusEl.style.color = "green";
+        statusEl.innerText = "Добавлено и сохранено"; statusEl.style.color = "green";
         openAccountsManager();
-    } catch (e) {
-        statusEl.innerText = "Ошибка сохранения: " + e.message;
-        statusEl.style.color = "red";
-    }
+    } catch (e) { statusEl.innerText = "Ошибка сохранения: " + e.message; statusEl.style.color = "red"; }
 }
 
 async function deleteAccount(index) {
     if (!confirm("Точно удалить этот аккаунт?")) return;
-
     let users;
-    try {
-        users = JSON.parse(await apiGet("users"));
-    } catch (e) {
-        alert("Ошибка загрузки: " + e.message);
-        return;
-    }
-
+    try { users = JSON.parse(await apiGet("users")); } catch (e) { alert("Ошибка: " + e.message); return; }
     users.splice(index, 1);
-
-    try {
-        await apiPut("users", JSON.stringify(users, null, 2));
-        openAccountsManager();
-    } catch (e) {
-        alert("Ошибка сохранения: " + e.message);
-    }
+    try { await apiPut("users", JSON.stringify(users, null, 2)); openAccountsManager(); } catch (e) { alert("Ошибка: " + e.message); }
 }
 
-// === ВКЛАДКА ЗАДАНИЯ (СПИСОК И ДОБАВЛЕНИЕ) ===
+// === ВКЛАДКА ЗАДАНИЯ ===
 async function openTasksList() {
     showPage('tasks-page');
-    
     const btnAdd = document.getElementById('btn-add-question');
-    if (currentUser && currentUser.role === 'admin') {
-        if (btnAdd) btnAdd.style.display = 'inline-block';
-    } else {
-        if (btnAdd) btnAdd.style.display = 'none';
-    }
-    
+    if (currentUser && currentUser.role === 'admin') { if (btnAdd) btnAdd.style.display = 'inline-block'; } 
+    else { if (btnAdd) btnAdd.style.display = 'none'; }
     const formContainer = document.getElementById('add-form-container');
     if (formContainer) formContainer.style.display = 'none';
-
-    // Загружаем историю перед рендером
-    let userHistory = {};
-    if (currentUser) {
-        userHistory = await loadUserHistory(currentUser.login);
-    }
-    
+    let userHistory = currentUser ? await loadUserHistory(currentUser.login) : {};
     loadAndRenderTasks(userHistory);
 }
 
 async function loadAndRenderTasks(userHistory = {}) {
     const container = document.getElementById('tasks-list-container');
     try {
-        const dataStr = await apiGet('questions');
-        const data = JSON.parse(dataStr);
-        
+        const data = JSON.parse(await apiGet('questions'));
         let html = '';
         if (!data.categories || data.categories.length === 0) {
             html = '<p>Пока нет ни одного вопроса.</p>';
         } else {
             const isAdmin = currentUser && currentUser.role === 'admin';
-
             data.categories.forEach((cat, catIndex) => {
-                html += `<h4 class="task-category-header">${cat.name}</h4>`;
-                html += '<ul class="tasks-list">';
-                
+                html += `<h4 class="task-category-header">${cat.name}</h4><ul class="tasks-list">`;
                 cat.questions.forEach((q, qIndexInCat) => {
-                    let typeName = "";
-                    if (q.type === 'multiple_choice') typeName = "[Выбор]";
-                    else if (q.type === 'text_input') typeName = "[Текст]";
-                    else if (q.type === 'table_fill') typeName = "[Таблица]";
-
-					// Проверяем статус ответа из истории
-					let statusClass = "";
-					const savedAns = userHistory[q.id];
-
-					if (savedAns !== undefined) {
-						let isCorrect = false;
-						
-						if (q.type === 'multiple_choice') {
-							isCorrect = (savedAns === q.correct_index);
-						} else if (q.type === 'text_input') {
-							if (q.accepted_answers && Array.isArray(q.accepted_answers)) {
-								const normalizedAns = String(savedAns).toLowerCase().trim();
-								isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === normalizedAns);
-							}
-						} else if (q.type === 'table_fill' && q.rows && q.rows[0] && q.rows[0].cells) {
-							// Полноценная проверка таблицы
-							let correctCells = 0;
-							let totalCells = 0;
-							q.rows.forEach((r, rowIndex) => {
-								r.cells.forEach((cell, colIndex) => {
-									if (cell.is_hint) return;
-									totalCells++;
-									const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
-									const userVal = (savedAns[uniqueKey] || "").toLowerCase().trim();
-									const correctVal = (cell.value || "").toLowerCase().trim();
-									if (correctVal === "") return;
-									if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) {
-										correctCells++;
-									}
-								});
-							});
-							isCorrect = (totalCells > 0 && correctCells === totalCells);
-						}
-						
-						statusClass = isCorrect ? "status-correct" : "status-wrong";
-					}
-
-                    html += `<li class="tasks-item ${statusClass}">`;
-                    
-                    html += `<div style="flex-grow:1; padding-left: 10px;">
-                                <span class="task-type-badge">${typeName}</span> ${q.text} 
-                             </div>`;
-                    
-                    html += `<div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">`;
-                    html += `<span class="task-points">${q.points} балл</span>`;
-                    
-                    if (isAdmin) {
-                        html += `<button onclick="editQuestion(${catIndex}, ${qIndexInCat})" 
-                                         class="btn-nav" 
-                                         style="background:#ffc107; color:black; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">
-                                     Изменить
-                                 </button>`;
-                        html += `<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" 
-                                         class="btn-nav" 
-                                         style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">
-                                     Удалить
-                                 </button>`;
+                    let typeName = q.type === 'multiple_choice' ? "[Выбор]" : q.type === 'text_input' ? "[Текст]" : "[Таблица]";
+                    let statusClass = "";
+                    const savedAns = userHistory[q.id];
+                    if (savedAns !== undefined) {
+                        let isCorrect = false;
+                        if (q.type === 'multiple_choice') isCorrect = (savedAns === q.correct_index);
+                        else if (q.type === 'text_input' && q.accepted_answers) {
+                            isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === String(savedAns).toLowerCase().trim());
+                        } else if (q.type === 'table_fill' && q.rows && q.rows[0] && q.rows[0].cells) {
+                            let correctCells = 0, totalCells = 0;
+                            q.rows.forEach((r, rowIndex) => {
+                                r.cells.forEach((cell, colIndex) => {
+                                    if (cell.is_hint) return;
+                                    totalCells++;
+                                    const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+                                    const userVal = (savedAns[uniqueKey] || "").toLowerCase().trim();
+                                    const correctVal = (cell.value || "").toLowerCase().trim();
+                                    if (correctVal === "") return;
+                                    if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) correctCells++;
+                                });
+                            });
+                            isCorrect = (totalCells > 0 && correctCells === totalCells);
+                        }
+                        statusClass = isCorrect ? "status-correct" : "status-wrong";
                     }
-                    
+                    html += `<li class="tasks-item ${statusClass}">
+                        <div style="flex-grow:1; padding-left: 10px;"><span class="task-type-badge">${typeName}</span> ${q.text}</div>
+                        <div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">
+                            <span class="task-points">${q.points} балл</span>`;
+                    if (isAdmin) {
+                        html += `<button onclick="editQuestion(${catIndex}, ${qIndexInCat})" class="btn-nav" style="background:#ffc107; color:black; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">Изменить</button>
+                                 <button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" class="btn-nav" style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">Удалить</button>`;
+                    }
                     html += `</div></li>`;
                 });
-                
                 html += '</ul>';
             });
         }
-        
         container.innerHTML = html;
     } catch (e) {
         console.error(e);
@@ -712,81 +439,37 @@ async function loadAndRenderTasks(userHistory = {}) {
 
 async function deleteQuestion(categoryId, questionIndex) {
     if (!confirm("Точно удалить этот вопрос?")) return;
-
     try {
-        const currentJsonStr = await apiGet('questions');
-        const data = JSON.parse(currentJsonStr);
-
+        const data = JSON.parse(await apiGet('questions'));
         const catIndex = data.categories.findIndex(c => c.id === categoryId);
-        if (catIndex === -1) {
-            alert("Ошибка: категория не найдена.");
-            return;
-        }
-
-        const category = data.categories[catIndex];
-
-        if (questionIndex < 0 || questionIndex >= category.questions.length) {
-            alert("Ошибка: индекс вопроса неверен.");
-            return;
-        }
-
-        category.questions.splice(questionIndex, 1);
-
+        if (catIndex === -1) { alert("Категория не найдена."); return; }
+        data.categories[catIndex].questions.splice(questionIndex, 1);
         await apiPut('questions', JSON.stringify(data, null, 2));
-        
-        // Перезагружаем историю и список
-        let userHistory = {};
-        if (currentUser) {
-            userHistory = await loadUserHistory(currentUser.login);
-        }
+        let userHistory = currentUser ? await loadUserHistory(currentUser.login) : {};
         loadAndRenderTasks(userHistory);
-        
-    } catch (e) {
-        console.error(e);
-        alert("Ошибка сохранения изменений: " + e.message);
-    }
+    } catch (e) { alert("Ошибка: " + e.message); }
 }
 
-// Функция редактирования вопроса (заглушка, так как полная реализация требует сложной формы)
 async function editQuestion(catIndex, qIndex) {
     try {
-        const dataStr = await apiGet('questions');
-        const data = JSON.parse(dataStr);
-        
+        const data = JSON.parse(await apiGet('questions'));
         const category = data.categories[catIndex];
-        if (!category) throw new Error("Категория не найдена");
-        
         const question = category.questions[qIndex];
-        if (!question) throw new Error("Вопрос не найден");
-
-        // Сохраняем контекст редактирования
         editingContext = { catIndex, qIndex, questionId: question.id };
-
-        // Открываем форму
-        toggleAddForm(true);
-
-        // Заполняем базовые поля
         document.getElementById('task-category').value = category.name;
         document.getElementById('task-type').value = question.type;
         document.getElementById('task-text').value = question.text;
         document.getElementById('task-points').value = question.points;
-
-        // Меняем заголовок и текст кнопки
         const formTitle = document.querySelector('#add-form-container h4');
         if (formTitle) formTitle.innerText = "Редактирование вопроса";
         const saveBtn = document.querySelector('#add-form-container button.btn-primary');
         if (saveBtn) saveBtn.innerText = "Сохранить изменения";
-
-        // Инициализируем динамические поля под тип
+        const form = document.getElementById('add-form-container');
+        form.style.display = 'block';
         toggleTaskFields();
-
-        // Заполняем специфичные поля с небольшой задержкой (чтобы DOM успел отрисоваться)
         setTimeout(() => fillSpecificFields(question), 100);
-
-    } catch (e) {
-        console.error(e);
-        alert("Ошибка загрузки данных для редактирования: " + e.message);
-    }
+        showPage('tasks-page');
+    } catch (e) { alert("Ошибка: " + e.message); }
 }
 
 function fillSpecificFields(q) {
@@ -800,36 +483,28 @@ function fillSpecificFields(q) {
             list.appendChild(div);
         });
         document.getElementById('mc-correct-index').value = q.correct_index;
-    } 
-    else if (q.type === 'text_input') {
+    } else if (q.type === 'text_input') {
         document.getElementById('ti-accepted').value = (q.accepted_answers || []).join(', ');
-    } 
-    else if (q.type === 'table_fill') {
+    } else if (q.type === 'table_fill') {
         document.getElementById('tf-headers').value = (q.headers || []).join(', ');
         const rowsList = document.getElementById('tf-rows-list');
         rowsList.innerHTML = '';
         if (q.rows && q.rows[0] && q.rows[0].cells) {
-            // Новый формат
             q.rows.forEach((r, rowIdx) => {
                 const div = document.createElement('div');
-                div.style.marginBottom = '10px';
-                div.style.border = '1px solid #eee';
-                div.style.padding = '5px';
+                div.className = 'tf-row-block';
                 let cellsHtml = '';
                 r.cells.forEach((cell, i) => {
-                    cellsHtml += `<div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dotted #ccc;"> <label><b>Колонка ${i+1}</b></label><br> <input type="text" class="text-input tf-cell-val" value="${cell.value}" style="width:70%; display:inline-block;"> <label style="display:inline-block; margin-left:10px;"> <input type="checkbox" class="tf-cell-hint" ${cell.is_hint ? 'checked' : ''}> Подсказка? </label> </div>`;
+                    cellsHtml += `<div class="tf-cell-block"><label><b>Колонка ${i+1}</b></label><br><input type="text" class="text-input tf-cell-val" value="${cell.value}" style="width:70%; display:inline-block;"><label style="display:inline-block; margin-left:10px;"><input type="checkbox" class="tf-cell-hint" ${cell.is_hint ? 'checked' : ''}> Подсказка?</label></div>`;
                 });
                 div.innerHTML = `<strong>Строка ${rowIdx + 1}</strong>${cellsHtml}<button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">Удалить строку</button>`;
                 rowsList.appendChild(div);
             });
         } else if (q.rows && q.rows[0] && q.rows[0].label !== undefined) {
-            // Старый формат
             q.rows.forEach(r => {
                 const div = document.createElement('div');
-                div.style.marginBottom = '10px';
-                div.style.border = '1px solid #eee';
-                div.style.padding = '5px';
-                div.innerHTML = `<strong>Строка</strong><br><label>Метка:</label><input type="text" class="text-input tf-label" value="${r.label}"><label>Правильное значение:</label><input type="text" class="text-input tf-value" value="${r.correct_value}"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button><div style="clear:both;"></div>`;
+                div.className = 'tf-row-block';
+                div.innerHTML = `<strong>Строка</strong><br><label>Метка:</label><input type="text" class="text-input tf-label" value="${r.label}"><label>Значение:</label><input type="text" class="text-input tf-value" value="${r.correct_value}"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button><div style="clear:both;"></div>`;
                 rowsList.appendChild(div);
             });
         }
@@ -843,7 +518,6 @@ function toggleAddForm(forceOpen = false) {
         toggleTaskFields();
     } else {
         form.style.display = 'none';
-        // При закрытии сбрасываем контекст редактирования
         editingContext = null;
         resetFormUI();
     }
@@ -854,7 +528,6 @@ function resetFormUI() {
     if (formTitle) formTitle.innerText = "Новый вопрос";
     const saveBtn = document.querySelector('#add-form-container button.btn-primary');
     if (saveBtn) saveBtn.innerText = "Сохранить вопрос";
-    // Очищаем поля
     document.getElementById('task-category').value = '';
     document.getElementById('task-text').value = '';
     document.getElementById('task-points').value = '1';
@@ -867,83 +540,40 @@ function toggleTaskFields() {
     const type = document.getElementById('task-type').value;
     const container = document.getElementById('dynamic-fields-container');
     let html = '';
-
     if (type === 'multiple_choice') {
-        html = `
-            <h4>Варианты ответов</h4>
-            <div id="mc-options-list">
-                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 1"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
-                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 2"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
-            </div>
-            <button onclick="addMcOption()" class="btn-nav">+ Добавить вариант</button>
-            <br><br>
-            <label>Индекс правильного ответа (начинается с 0):</label>
-            <input type="number" id="mc-correct-index" value="0" min="0" class="text-input" style="width:80px;">
-        `;
-    } 
-    else if (type === 'text_input') {
-        html = `
-            <h4>Проверка ответа</h4>
-            <label>Разрешённые ответы (через запятую):</label>
-            <input type="text" id="ti-accepted" placeholder="ответ1, ответ2" class="text-input">
-        `;
-    } 
-    else if (type === 'table_fill') {
-        html = `
-            <h4>Структура таблицы</h4>
-            <label>Заголовки колонок (через запятую):</label>
-            <input type="text" id="tf-headers" placeholder="Колонка 1, Колонка 2" class="text-input">
-            <div id="tf-rows-list"></div>
-            <button onclick="addTfRow()" class="btn-nav">+ Добавить строку данных</button>
-        `;
+        html = `<h4>Варианты ответов</h4><div id="mc-options-list">
+            <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 1"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
+            <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 2"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
+        </div><button onclick="addMcOption()" class="btn-nav">+ Добавить вариант</button><br><br>
+        <label>Индекс правильного ответа (начинается с 0):</label><input type="number" id="mc-correct-index" value="0" min="0" class="text-input" style="width:80px;">`;
+    } else if (type === 'text_input') {
+        html = `<h4>Проверка ответа</h4><label>Разрешённые ответы (через запятую):</label><input type="text" id="ti-accepted" placeholder="ответ1, ответ2" class="text-input">`;
+    } else if (type === 'table_fill') {
+        html = `<h4>Структура таблицы</h4><label>Заголовки колонок (через запятую):</label><input type="text" id="tf-headers" placeholder="Колонка 1, Колонка 2" class="text-input"><div id="tf-rows-list"></div><button onclick="addTfRow()" class="btn-nav">+ Добавить строку данных</button>`;
     }
     container.innerHTML = html;
 }
 
 function addMcOption() {
     const list = document.getElementById('mc-options-list');
-    const count = list.children.length + 1;
     const div = document.createElement('div');
     div.className = 'mc-option-row';
-    div.innerHTML = `<input type="text" class="text-input mc-opt-val" placeholder="Вариант ${count}"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button>`;
+    div.innerHTML = `<input type="text" class="text-input mc-opt-val" placeholder="Вариант ${list.children.length + 1}"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button>`;
     list.appendChild(div);
 }
 
 function addTfRow() {
     const list = document.getElementById('tf-rows-list');
     const headersInput = document.getElementById('tf-headers').value.trim();
-    
-    if (!headersInput) {
-        alert("Сначала заполните заголовки колонок!");
-        return;
-    }
-    
+    if (!headersInput) { alert("Сначала заполните заголовки колонок!"); return; }
     const cols = headersInput.split(',');
-    const idx = list.children.length;
-    
     const div = document.createElement('div');
-    div.style.marginBottom = '10px';
-    div.style.border = '1px solid #eee';
-    div.style.padding = '5px';
-    
+    div.className = 'tf-row-block';
     let cellsHtml = '';
     cols.forEach((colName, i) => {
-        cellsHtml += `
-            <div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dotted #ccc;">
-                <label><b>Колонка ${i+1}: ${colName.trim()}</b></label><br>
-                <input type="text" class="text-input tf-cell-val" placeholder="Введите правильный ответ..." style="width:70%; display:inline-block;">
-                <label style="display:inline-block; margin-left:10px;">
-                    <input type="checkbox" class="tf-cell-hint"> Подсказка?
-                </label>
-            </div>
-        `;
+        cellsHtml += `<div class="tf-cell-block"><label><b>Колонка ${i+1}: ${colName.trim()}</b></label><br><input type="text" class="text-input tf-cell-val" placeholder="Введите правильный ответ..." style="width:70%; display:inline-block;"><label style="display:inline-block; margin-left:10px;"><input type="checkbox" class="tf-cell-hint"> Подсказка?</label></div>`;
     });
-
-    div.innerHTML = `
-        <strong>Строка ${idx + 1}</strong>
-        ${cellsHtml}
-        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">Удалить строку</button>
-    `;
+    div.innerHTML = `<strong>Строка ${list.children.length + 1}</strong>${cellsHtml}<button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">Удалить строку</button>`;
     list.appendChild(div);
 }
 
@@ -953,31 +583,20 @@ async function saveNewQuestion() {
     const text = document.getElementById('task-text').value.trim();
     const points = parseInt(document.getElementById('task-points').value) || 1;
     const statusEl = document.getElementById('task-status');
-
-    if (!category || !text) {
-        statusEl.innerText = "Ошибка: заполните тему и текст";
-        statusEl.style.color = "red";
-        return;
-    }
-
-    // Собираем объект вопроса
-    let questionObj = { id: Date.now(), type: type, text: text, points: points };
-
+    if (!category || !text) { statusEl.innerText = "Ошибка: заполните тему и текст"; statusEl.style.color = "red"; return; }
+    let questionObj = { id: Date.now(), type, text, points };
     try {
         if (type === 'multiple_choice') {
             const opts = Array.from(document.querySelectorAll('.mc-opt-val')).map(i => i.value.trim()).filter(v => v);
             const correctIdx = parseInt(document.getElementById('mc-correct-index').value);
             if (opts.length < 2) throw new Error("Нужно минимум 2 варианта");
             if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= opts.length) throw new Error(`Неверный индекс (от 0 до ${opts.length - 1})`);
-            questionObj.options = opts;
-            questionObj.correct_index = correctIdx;
-        } 
-        else if (type === 'text_input') {
+            questionObj.options = opts; questionObj.correct_index = correctIdx;
+        } else if (type === 'text_input') {
             const accStr = document.getElementById('ti-accepted').value.trim();
             if (!accStr) throw new Error("Укажите правильный ответ");
             questionObj.accepted_answers = accStr.split(',').map(s => s.trim().toLowerCase());
-        } 
-        else if (type === 'table_fill') {
+        } else if (type === 'table_fill') {
             const headersStr = document.getElementById('tf-headers').value.trim();
             if (!headersStr) throw new Error("Укажите заголовки");
             questionObj.headers = headersStr.split(',').map(h => h.trim());
@@ -989,70 +608,33 @@ async function saveNewQuestion() {
                 const cellHints = el.querySelectorAll('.tf-cell-hint');
                 const rowData = { cells: [] };
                 for(let i=0; i<cellVals.length; i++) {
-                    rowData.cells.push({
-                        value: cellVals[i].value.trim(),
-                        is_hint: cellHints[i].checked
-                    });
+                    rowData.cells.push({ value: cellVals[i].value.trim(), is_hint: cellHints[i].checked });
                 }
-                if(rowData.cells.some(c => c.value !== "" || c.is_hint)) {
-                    questionObj.rows.push(rowData);
-                }
+                if(rowData.cells.some(c => c.value !== "" || c.is_hint)) questionObj.rows.push(rowData);
             });
             if(questionObj.rows.length === 0) throw new Error("Все строки пустые");
         }
-
-        const currentJsonStr = await apiGet('questions');
-        const data = JSON.parse(currentJsonStr);
-
+        const data = JSON.parse(await apiGet('questions'));
         if (editingContext) {
-            // РЕЖИМ РЕДАКТИРОВАНИЯ
             const oldCat = data.categories[editingContext.catIndex];
             const oldQuestion = oldCat ? oldCat.questions[editingContext.qIndex] : null;
-            
-            // Находим целевую категорию (может быть изменено название)
             let targetCat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
-            if (!targetCat) {
-                targetCat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
-                data.categories.push(targetCat);
-            }
-
-            // Удаляем старый вопрос из старой категории (если она существует и отличается от целевой, или даже если та же — мы его перезапишем)
+            if (!targetCat) { targetCat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] }; data.categories.push(targetCat); }
             if (oldCat && oldQuestion) {
                 const idxInOld = oldCat.questions.findIndex(q => q.id === editingContext.questionId);
-                if (idxInOld !== -1) {
-                    oldCat.questions.splice(idxInOld, 1);
-                }
+                if (idxInOld !== -1) oldCat.questions.splice(idxInOld, 1);
             }
-
-            // Сохраняем оригинальный ID, чтобы не терять историю ответов
-            if (oldQuestion) {
-                questionObj.id = oldQuestion.id;
-            }
-
+            if (oldQuestion) questionObj.id = oldQuestion.id;
             targetCat.questions.push(questionObj);
-            
         } else {
-            // РЕЖИМ ДОБАВЛЕНИЯ
             let cat = data.categories.find(c => c.name.toLowerCase() === category.toLowerCase());
-            if (!cat) {
-                cat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] };
-                data.categories.push(cat);
-            }
+            if (!cat) { cat = { id: category.toLowerCase().replace(/\s+/g, '_'), name: category, questions: [] }; data.categories.push(cat); }
             cat.questions.push(questionObj);
         }
-
         await apiPut('questions', JSON.stringify(data, null, 2));
-
         statusEl.innerText = editingContext ? "Вопрос обновлён!" : "Вопрос добавлен!";
         statusEl.style.color = "green";
-        
-        setTimeout(() => {
-            editingContext = null;
-            resetFormUI();
-            toggleAddForm(false);
-            openTasksList();
-        }, 1000);
-
+        setTimeout(() => { editingContext = null; resetFormUI(); toggleAddForm(false); openTasksList(); }, 1000);
     } catch (e) {
         console.error(e);
         statusEl.innerText = "Ошибка: " + e.message;
@@ -1066,37 +648,23 @@ function toggleTheme() {
     localStorage.setItem('biology_theme', isDark ? 'dark' : 'light');
     updateThemeButton(isDark);
 }
-
 function updateThemeButton(isDark) {
     const btn = document.getElementById('theme-toggle');
-    if (btn) {
-        btn.innerText = isDark ? '☀️ Светлая тема' : '🌙 Тёмная тема';
-    }
+    if (btn) btn.innerText = isDark ? '☀️ Светлая тема' : '🌙 Тёмная тема';
 }
-
 function applySavedTheme() {
     const saved = localStorage.getItem('biology_theme');
-    if (saved === 'dark') {
-        document.body.classList.add('dark-theme');
-        updateThemeButton(true);
-    } else {
-        updateThemeButton(false);
-    }
+    if (saved === 'dark') { document.body.classList.add('dark-theme'); updateThemeButton(true); } 
+    else { updateThemeButton(false); }
 }
 
 // === ИНИЦИАЛИЗАЦИЯ ===
 window.onload = async () => {
-    applySavedTheme(); // <-- Добавь эту строку первой
+    applySavedTheme();
     await loadData();
-    
     const savedUser = localStorage.getItem("biology_user");
     if (savedUser) {
-        try {
-            currentUser = JSON.parse(savedUser);
-            updateUIForLoggedInUser();
-        } catch {
-            currentUser = null;
-            localStorage.removeItem("biology_user");
-        }
+        try { currentUser = JSON.parse(savedUser); updateUIForLoggedInUser(); } 
+        catch { currentUser = null; localStorage.removeItem("biology_user"); }
     }
 };
