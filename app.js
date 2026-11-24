@@ -30,6 +30,26 @@ async function apiPut(route, contentStr) {
     return txt;
 }
 
+// === ИСТОРИЯ ОТВЕТОВ (ГЛОБАЛЬНОЕ ХРАНЕНИЕ) ===
+async function loadUserHistory(login) {
+    try {
+        const res = await fetch(`${WORKER_URL}/api/results/${login}`);
+        if (!res.ok) return {}; 
+        return JSON.parse(await res.text());
+    } catch (e) {
+        console.error("Ошибка загрузки истории:", e);
+        return {};
+    }
+}
+
+async function saveUserHistory(login, historyData) {
+    try {
+        await apiPut(`results/${login}`, JSON.stringify(historyData, null, 2));
+    } catch (e) {
+        console.error("Ошибка сохранения истории:", e);
+    }
+}
+
 // === ЗАГРУЗКА ДАННЫХ ===
 async function loadData() {
     try {
@@ -38,7 +58,10 @@ async function loadData() {
         // Сохраняем полную структуру категорий
         allCategories = data.categories || [];
         
-        console.log(`Загружено ${allCategories.length} категорий`);
+        // Плоский список вопросов (для старых функций, если они еще используются)
+        questions = allCategories.flatMap(c => c.questions);
+        
+        console.log(`Загружено ${allCategories.length} категорий, всего ${questions.length} вопросов`);
         
     } catch (e) {
         console.error("Ошибка загрузки:", e);
@@ -227,18 +250,34 @@ function renderQ() {
     } else if (q.type === "text_input") {
         const val = userAnswers[q.id] || "";
         html += `<input type="text" class="text-input" value="${val}" placeholder="Введите ответ..." onchange="saveAnswer(${q.id}, this.value)">`;
-    } else if (q.type === "table_fill") {
-        html += `<table class="table-fill"><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
-        q.rows.forEach(r => {
-            if (r.is_hint) {
-                html += `<tr><td>${r.label}</td><td style="background:#f0f8ff; color:#0056b3; font-weight:bold;">${r.correct_value}</td></tr>`;
-            } else {
-                const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
-                html += `<tr><td>${r.label}</td><td><input class="text-input" value="${val}" onchange="saveTableAnswer(${q.id}, '${r.key}', this.value)" placeholder="..."></td></tr>`;
-            }
-        });
-        html += "</table>";
-    }
+	} else if (q.type === "table_fill") {
+		html += `<table class="table-fill">`;
+		
+		// Шапка таблицы
+		html += `<thead><tr>${q.headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
+		
+		// Тело таблицы
+		html += `<tbody>`;
+		q.rows.forEach((r, rowIndex) => {
+			html += `<tr>`;
+			r.cells.forEach((cell, colIndex) => {
+				const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+				
+				if (cell.is_hint) {
+					// Подсказка: показываем текст, поле ввода скрыто
+					html += `<td style="background:#eef5ff; color:#004085; font-weight:bold;">${cell.value}</td>`;
+				} else {
+					// Поле для ввода учеником
+					const userVal = (userAnswers[q.id] && userAnswers[q.id][uniqueKey]) || "";
+					html += `<td><input type="text" class="text-input" value="${userVal}" 
+							 onchange="saveTableAnswer('${q.id}', '${uniqueKey}', this.value)" 
+							 placeholder="..."></td>`;
+				}
+			});
+			html += `</tr>`;
+		});
+		html += `</tbody></table>`;
+	}
 
     html += "</div>";
     document.getElementById("q-container").innerHTML = html;
@@ -275,11 +314,11 @@ function prevQ() {
 }
 
 // === ПОДСЧЁТ РЕЗУЛЬТАТА ===
-function finishTest() {
+async function finishTest() {
     let score = 0;
     let maxScore = 0;
     
-    // Собираем данные для отображения
+    // 1. Собираем данные для отображения разбора
     const reviewItems = [];
 
     questions.forEach(q => {
@@ -301,31 +340,32 @@ function finishTest() {
             }
             detailText = `Ваш ответ: ${ans || "(пусто)"} | Правильные: ${(q.accepted_answers || []).join(", ")}`;
         } 
-        else if (q.type === "table_fill") {
-            let correctCells = 0;
-            let totalCells = 0;
-            
-            if (ans) {
-                q.rows.forEach(r => {
-                    if (r.is_hint) return; // Пропускаем подсказки
-                    totalCells++;
-                    const userVal = (ans[r.key] || "").toLowerCase().trim();
-                    const correctVal = (r.correct_value || "").toLowerCase();
-                    if (userVal && (userVal.includes(correctVal) || correctVal.includes(userVal))) {
-                        correctCells++;
-                    }
-                });
-                
-                // Если все обязательные ячейки верны - вопрос засчитан полностью
-                if (totalCells > 0 && correctCells === totalCells) {
-                    isCorrect = true;
-                }
-                
-                detailText = `Верно ячеек: ${correctCells}/${totalCells}`;
-            } else {
-                detailText = "(нет данных)";
-            }
-        }
+		else if (q.type === "table_fill" && ans) {
+			let correctCells = 0;
+			let totalTaskCells = 0; 
+			
+			q.rows.forEach((r, rowIndex) => {
+				r.cells.forEach((cell, colIndex) => {
+					// Пропускаем подсказки — они не влияют на оценку
+					if (cell.is_hint) return; 
+					
+					totalTaskCells++;
+					const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+					const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
+					const correctVal = (cell.value || "").toLowerCase();
+					
+					// Проверка на частичное или полное совпадение
+					if (userVal && (userVal.includes(correctVal) || correctVal.includes(userVal))) {
+						correctCells++;
+					}
+				});
+			});
+			
+			// Начисляем баллы пропорционально заполненным ячейкам
+			if (totalTaskCells > 0) {
+				score += Math.round((correctCells / totalTaskCells) * q.points);
+			}
+		}
 
         if (isCorrect) {
             score += q.points;
@@ -341,45 +381,64 @@ function finishTest() {
         });
     });
 
+    // 2. Расчет процентов и вывод итогового счета
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
     document.getElementById("score-display").innerText =
         `Итог: ${score} из ${maxScore} баллов (${percent}%)`;
     
-    // Генерируем HTML списка разбора
+    // 3. Генерация HTML списка разбора (в стиле вкладки "Все задания")
     const container = document.getElementById('review-list-container');
-    if (!container) return;
-
-    let html = '<ul class="tasks-list">'; // Используем тот же класс, что и в списке заданий
-    
-    reviewItems.forEach(item => {
-        let typeName = "";
-        if (item.type === 'multiple_choice') typeName = "[Выбор]";
-        else if (item.type === 'text_input') typeName = "[Текст]";
-        else if (item.type === 'table_fill') typeName = "[Таблица]";
-
-        // Определяем класс статуса для цветной полоски слева
-        const statusClass = item.isCorrect ? "status-correct" : "status-wrong";
+    if (container) {
+        let html = '<ul class="tasks-list">'; 
         
-        html += `
-            <li class="tasks-item ${statusClass}">
-                <div style="flex-grow:1; padding-left: 10px;">
-                    <span class="task-type-badge">${typeName}</span> 
-                    <strong>${item.text}</strong>
-                    <div style="margin-top:5px; font-size:13px; color:#666;">${item.detail}</div>
-                </div>
-                <div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">
-                    <span class="task-points">${item.points} балл</span>
-                    <span style="font-weight:bold; color:${item.isCorrect ? '#28a745' : '#dc3545'}; font-size:18px;">
-                        ${item.isCorrect ? '✓' : '✗'}
-                    </span>
-                </div>
-            </li>
-        `;
-    });
-    
-    html += '</ul>';
-    
-    container.innerHTML = html;
+        reviewItems.forEach(item => {
+            let typeName = "";
+            if (item.type === 'multiple_choice') typeName = "[Выбор]";
+            else if (item.type === 'text_input') typeName = "[Текст]";
+            else if (item.type === 'table_fill') typeName = "[Таблица]";
+
+            // Определяем класс статуса для цветной полоски слева
+            const statusClass = item.isCorrect ? "status-correct" : "status-wrong";
+            
+            html += `
+                <li class="tasks-item ${statusClass}">
+                    <div style="flex-grow:1; padding-left: 10px;">
+                        <span class="task-type-badge">${typeName}</span> 
+                        <strong>${item.text}</strong>
+                        <div style="margin-top:5px; font-size:13px; color:#666;">${item.detail}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">
+                        <span class="task-points">${item.points} балл</span>
+                        <span style="font-weight:bold; color:${item.isCorrect ? '#28a745' : '#dc3545'}; font-size:18px;">
+                            ${item.isCorrect ? '✓' : '✗'}
+                        </span>
+                    </div>
+                </li>
+            `;
+        });
+        
+        html += '</ul>';
+        container.innerHTML = html;
+    }
+
+    // 4. СОХРАНЕНИЕ ИСТОРИИ НА СЕРВЕР (GitHub через Worker)
+    if (currentUser) {
+        try {
+            // Загружаем старую историю пользователя
+            let currentHistory = await loadUserHistory(currentUser.login);
+            
+            // Обновляем ответы в истории новыми данными
+            Object.assign(currentHistory, userAnswers);
+            
+            // Сохраняем обратно
+            await saveUserHistory(currentUser.login, currentHistory);
+        } catch (e) {
+            console.error("Не удалось сохранить историю:", e);
+            // Не блокируем показ результатов, если сохранение упало
+        }
+    }
+
+    // 5. Переключение на страницу результатов
     showPage("results");
 }
 
@@ -525,10 +584,16 @@ async function openTasksList() {
     const formContainer = document.getElementById('add-form-container');
     if (formContainer) formContainer.style.display = 'none';
 
-    loadAndRenderTasks();
+    // Загружаем историю перед рендером
+    let userHistory = {};
+    if (currentUser) {
+        userHistory = await loadUserHistory(currentUser.login);
+    }
+    
+    loadAndRenderTasks(userHistory);
 }
 
-async function loadAndRenderTasks() {
+async function loadAndRenderTasks(userHistory = {}) {
     const container = document.getElementById('tasks-list-container');
     try {
         const dataStr = await apiGet('questions');
@@ -550,7 +615,29 @@ async function loadAndRenderTasks() {
                     else if (q.type === 'text_input') typeName = "[Текст]";
                     else if (q.type === 'table_fill') typeName = "[Таблица]";
                     
-                    html += `<li class="tasks-item">`;
+                    // Проверяем статус ответа из истории
+                    let statusClass = "";
+                    const savedAns = userHistory[q.id];
+                    
+                    if (savedAns !== undefined) {
+                        // Логика проверки правильности (упрощенная, та же что в finishTest)
+                        let isCorrect = false;
+                        
+                        if (q.type === 'multiple_choice') {
+                            isCorrect = (savedAns === q.correct_index);
+                        } else if (q.type === 'text_input') {
+                            if (q.accepted_answers && Array.isArray(q.accepted_answers)) {
+                                const normalizedAns = String(savedAns).toLowerCase().trim();
+                                isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === normalizedAns);
+                            }
+                        } 
+                        // Для table_fill проверка сложнее, здесь ставим просто факт наличия ответа
+                        // Можно доработать позже
+                        
+                        statusClass = isCorrect ? "status-correct" : "status-wrong";
+                    }
+
+                    html += `<li class="tasks-item ${statusClass}">`;
                     
                     html += `<div style="flex-grow:1; padding-left: 10px;">
                                 <span class="task-type-badge">${typeName}</span> ${q.text} 
@@ -609,7 +696,13 @@ async function deleteQuestion(categoryId, questionIndex) {
         category.questions.splice(questionIndex, 1);
 
         await apiPut('questions', JSON.stringify(data, null, 2));
-        loadAndRenderTasks();
+        
+        // Перезагружаем историю и список
+        let userHistory = {};
+        if (currentUser) {
+            userHistory = await loadUserHistory(currentUser.login);
+        }
+        loadAndRenderTasks(userHistory);
         
     } catch (e) {
         console.error(e);
@@ -680,23 +773,38 @@ function addMcOption() {
 
 function addTfRow() {
     const list = document.getElementById('tf-rows-list');
+    const headersInput = document.getElementById('tf-headers').value.trim();
+    
+    if (!headersInput) {
+        alert("Сначала заполните заголовки колонок!");
+        return;
+    }
+    
+    const cols = headersInput.split(',');
     const idx = list.children.length;
+    
     const div = document.createElement('div');
     div.style.marginBottom = '10px';
     div.style.border = '1px solid #eee';
     div.style.padding = '5px';
     
+    let cellsHtml = '';
+    cols.forEach((colName, i) => {
+        cellsHtml += `
+            <div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dotted #ccc;">
+                <label><b>Колонка ${i+1}: ${colName.trim()}</b></label><br>
+                <input type="text" class="text-input tf-cell-val" placeholder="Введите правильный ответ..." style="width:70%; display:inline-block;">
+                <label style="display:inline-block; margin-left:10px;">
+                    <input type="checkbox" class="tf-cell-hint"> Подсказка?
+                </label>
+            </div>
+        `;
+    });
+
     div.innerHTML = `
-        <strong>Строка ${idx + 1}</strong><br>
-        <label>Метка:</label>
-        <input type="text" class="text-input tf-label" placeholder="Напр.: Мышечная ткань">
-        <label>Правильное значение:</label>
-        <input type="text" class="text-input tf-value" placeholder="Напр.: Сокращение">
-        <label style="display:block; margin-top:5px;">
-            <input type="checkbox" class="tf-is-hint"> Это подсказка
-        </label>
-        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red; float:right;">Удалить</button>
-        <div style="clear:both;"></div>
+        <strong>Строка ${idx + 1}</strong>
+        ${cellsHtml}
+        <button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">Удалить строку</button>
     `;
     list.appendChild(div);
 }
@@ -730,30 +838,35 @@ async function saveNewQuestion() {
             if (!accStr) throw new Error("Укажите правильный ответ");
             questionObj.accepted_answers = accStr.split(',').map(s => s.trim().toLowerCase());
         } 
-        else if (type === 'table_fill') {
-            const headersStr = document.getElementById('tf-headers').value.trim();
-            if (!headersStr) throw new Error("Укажите заголовки");
-            questionObj.headers = headersStr.split(',').map(h => h.trim());
-            
-            const rowEls = document.querySelectorAll('#tf-rows-list > div');
-            if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
+		else if (type === 'table_fill') {
+			const headersStr = document.getElementById('tf-headers').value.trim();
+			if (!headersStr) throw new Error("Укажите заголовки");
+			questionObj.headers = headersStr.split(',').map(h => h.trim());
+			
+			const rowEls = document.querySelectorAll('#tf-rows-list > div');
+			if (rowEls.length === 0) throw new Error("Добавьте хотя бы одну строку");
 
-            questionObj.rows = [];
-            rowEls.forEach(el => {
-                const label = el.querySelector('.tf-label').value.trim();
-                const val = el.querySelector('.tf-value').value.trim();
-                const isHint = el.querySelector('.tf-is-hint').checked;
-                
-                if (label && val) {
-                    questionObj.rows.push({
-                        key: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                        label: label,
-                        correct_value: val,
-                        is_hint: isHint
-                    });
-                }
-            });
-        }
+			questionObj.rows = [];
+			rowEls.forEach(el => {
+				const cellVals = el.querySelectorAll('.tf-cell-val');
+				const cellHints = el.querySelectorAll('.tf-cell-hint');
+				
+				const rowData = { cells: [] };
+				
+				for(let i=0; i<cellVals.length; i++) {
+					rowData.cells.push({
+						value: cellVals[i].value.trim(),
+						is_hint: cellHints[i].checked
+					});
+				}
+				
+				if(rowData.cells.some(c => c.value !== "" || c.is_hint)) {
+					questionObj.rows.push(rowData);
+				}
+			});
+			
+			if(questionObj.rows.length === 0) throw new Error("Все строки пустые");
+		}
 
         const currentJsonStr = await apiGet('questions');
         const data = JSON.parse(currentJsonStr);
@@ -773,7 +886,7 @@ async function saveNewQuestion() {
         
         setTimeout(() => {
             toggleAddForm();
-            loadAndRenderTasks();
+            openTasksList(); // Обновляем список с историей
         }, 1000);
 
     } catch (e) {
