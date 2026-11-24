@@ -14,11 +14,11 @@
             <a href="#" onclick="showPage('home'); return false;" class="menu-item">Главная</a>
             <a href="#" onclick="startTest(); return false;" class="menu-item">Начать тест</a>
             <a href="#" onclick="openTasksList(); return false;" class="menu-item">Все задания</a>
-            
+			
             <!-- Админские ссылки -->
             <a href="#" id="admin-link" style="display:none;" onclick="openEditor(); return false;" class="menu-item">Редактор JSON</a>
             <a href="#" id="accounts-link" style="display:none;" onclick="openAccountsManager(); return false;" class="menu-item">Управление аккаунтами</a>
-            
+			
             <!-- Форма входа / Профиль -->
             <div id="auth-section" style="margin-top:auto; padding-top:20px; border-top:1px solid #ddd;">
                 <input type="text" id="login-input" placeholder="Логин" class="text-input">
@@ -30,6 +30,8 @@
                 <p style="font-size:14px;">Привет, <span id="username-display"></span></p>
                 <button onclick="logout()" class="btn-nav" style="width:100%;">Выход</button>
             </div>
+			
+			<button id="theme-toggle" class="theme-toggle-btn" onclick="toggleTheme()">🌙 Тёмная тема</button>
         </aside>
 
         <!-- Основной контент -->

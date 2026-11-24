@@ -1,9 +1,88 @@
-/* === БАЗОВЫЕ СТИЛИ И КАРКАС === */
+/* === ПЕРЕМЕННЫЕ ТЕМЫ === */
+:root {
+    --bg-body: #f4f6f9;
+    --bg-container: #ffffff;
+    --bg-sidebar: #ffffff;
+    --bg-page: #ffffff;
+    --bg-input: #ffffff;
+    --bg-button: #e9ecef;
+    --bg-button-hover: #dde2e6;
+    --bg-menu-hover: #eef5ff;
+    --bg-table-header: #e9ecef;
+    --bg-table-row-odd: #ffffff;
+    --bg-table-row-even: #f8f9fa;
+    --bg-table-hover: #e2e6ea;
+    --bg-task-item: #ffffff;
+    --bg-task-item-even: #f8f9fa;
+    --bg-task-item-hover: #e2e6ea;
+    --bg-editor: #fafafa;
+    --bg-status-correct: #f0fdf4;
+    --bg-status-wrong: #fef2f2;
+    --bg-hint-cell: #eef5ff;
+    
+    --text-main: #333333;
+    --text-muted: #555555;
+    --text-light: #777777;
+    --text-link: #444444;
+    --text-link-hover: #0056b3;
+    --text-button: #495057;
+    
+    --border-main: #e0e0e0;
+    --border-light: #eee;
+    --border-input: #ccc;
+    --border-table: #dee2e6;
+    --border-cell: #ced4da;
+    
+    --accent: #0056b3;
+    --accent-hover: #004494;
+    --shadow: 0 0 20px rgba(0,0,0,0.08);
+}
+
+body.dark-theme {
+    --bg-body: #121212;
+    --bg-container: #1e1e1e;
+    --bg-sidebar: #252526;
+    --bg-page: #1e1e1e;
+    --bg-input: #2d2d2d;
+    --bg-button: #3a3a3a;
+    --bg-button-hover: #4a4a4a;
+    --bg-menu-hover: #2a2d2e;
+    --bg-table-header: #2d2d2d;
+    --bg-table-row-odd: #1e1e1e;
+    --bg-table-row-even: #252525;
+    --bg-table-hover: #333333;
+    --bg-task-item: #1e1e1e;
+    --bg-task-item-even: #252525;
+    --bg-task-item-hover: #333333;
+    --bg-editor: #1e1e1e;
+    --bg-status-correct: #1a3a2a;
+    --bg-status-wrong: #3a1a1a;
+    --bg-hint-cell: #1a2a3a;
+    
+    --text-main: #e0e0e0;
+    --text-muted: #b0b0b0;
+    --text-light: #888888;
+    --text-link: #cccccc;
+    --text-link-hover: #66b3ff;
+    --text-button: #e0e0e0;
+    
+    --border-main: #3a3a3a;
+    --border-light: #333333;
+    --border-input: #555555;
+    --border-table: #444444;
+    --border-cell: #555555;
+    
+    --accent: #4a9eff;
+    --accent-hover: #66b3ff;
+    --shadow: 0 0 20px rgba(0,0,0,0.4);
+}
+
+/* === БАЗА === */
 body { 
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-    background: #f4f6f9; 
+    background: var(--bg-body); 
     margin: 0; 
-    color: #333; 
+    color: var(--text-main); 
     line-height: 1.5;
 }
 
@@ -11,15 +90,15 @@ body {
     display: flex; 
     max-width: 1200px; 
     margin: 0 auto; 
-    background: #fff; 
+    background: var(--bg-container); 
     min-height: 100vh; 
-    box-shadow: 0 0 20px rgba(0,0,0,0.08); 
+    box-shadow: var(--shadow); 
 }
 
 .sidebar { 
     width: 260px; 
-    background: #ffffff; 
-    border-right: 1px solid #e0e0e0; 
+    background: var(--bg-sidebar); 
+    border-right: 1px solid var(--border-main); 
     padding: 20px; 
     display: flex; 
     flex-direction: column; 
@@ -30,19 +109,20 @@ body {
     flex: 1; 
     padding: 30px; 
     overflow-y: auto;
+    color: var(--text-main);
 }
 
 h1, h2, h3, h4 { 
-    color: #0056b3; 
+    color: var(--accent); 
     margin-top: 0; 
     margin-bottom: 15px;
 }
 
-/* === НАВИГАЦИЯ (МЕНЮ) === */
+/* === МЕНЮ === */
 .menu-item { 
     display: block; 
     padding: 12px 15px; 
-    color: #444; 
+    color: var(--text-link); 
     text-decoration: none; 
     border-radius: 6px; 
     transition: all 0.2s ease; 
@@ -50,37 +130,39 @@ h1, h2, h3, h4 {
 }
 
 .menu-item:hover { 
-    background: #eef5ff; 
-    color: #0056b3; 
+    background: var(--bg-menu-hover); 
+    color: var(--text-link-hover); 
     transform: translateX(3px);
 }
 
-/* === ФОРМЫ ВХОДА / ПРОФИЛЬ === */
 #auth-section, #user-info {
-    margin-top: auto; /* Прижимаем к низу сайдбара */
+    margin-top: auto;
     padding-top: 20px; 
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--border-light);
 }
 
+/* === ФОРМЫ И КНОПКИ === */
 .text-input { 
     width: 100%; 
     padding: 10px; 
-    border: 1px solid #ccc; 
+    border: 1px solid var(--border-input); 
     border-radius: 4px; 
     margin: 5px 0; 
     box-sizing: border-box; 
     font-size: 14px;
+    background: var(--bg-input);
+    color: var(--text-main);
     transition: border-color 0.2s;
 }
 
 .text-input:focus {
     outline: none;
-    border-color: #0056b3;
-    box-shadow: 0 0 0 2px rgba(0,86,179,0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
 }
 
 .btn-primary { 
-    background: #0056b3; 
+    background: var(--accent); 
     color: white; 
     border: none; 
     padding: 10px 20px; 
@@ -91,11 +173,12 @@ h1, h2, h3, h4 {
 }
 
 .btn-primary:hover {
-    background: #004494;
+    background: var(--accent-hover);
 }
 
 .btn-nav { 
-    background: #e9ecef; 
+    background: var(--bg-button); 
+    color: var(--text-button);
     border: none; 
     padding: 8px 15px; 
     cursor: pointer; 
@@ -105,10 +188,10 @@ h1, h2, h3, h4 {
 }
 
 .btn-nav:hover {
-    background: #dde2e6;
+    background: var(--bg-button-hover);
 }
 
-/* === СТРАНИЦЫ (СКРЫТИЕ/ПОКАЗ) === */
+/* === СТРАНИЦЫ === */
 .page { 
     display: none; 
     animation: fadeIn 0.3s ease-in-out;
@@ -123,311 +206,81 @@ h1, h2, h3, h4 {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* === ТЕСТ: ВОПРОСЫ И ТАБЛИЦЫ === */
+/* === ВОПРОСЫ И ВАРИАНТЫ ОТВЕТА === */
 .question-block { 
-    border: 1px solid #ddd; 
+    border: 1px solid var(--border-main); 
     padding: 20px; 
     margin-bottom: 20px; 
-    background: #fff; 
+    background: var(--bg-page); 
     border-radius: 8px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.02);
 }
 
 .options label {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 8px 12px;
-    margin: 5px 0;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.options label:hover {
-    background: #f8f9fa;
-    border-color: #dee2e6;
-}
-
-.navigation {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid #eee;
-}
-
-/* --- ТАБЛИЦА ЗАПОЛНЕНИЯ (TABLE_FILL) --- */
-.table-fill {
-    width: 100%;
-    border-collapse: collapse; /* Склеивает границы ячеек в одну линию */
-    margin-top: 15px;
-    font-size: 14px;
-    background: #fff;
-}
-
-.table-fill th {
-    background-color: #e9ecef; /* Светло-серый фон заголовков */
-    color: #333;
-    text-align: left;
-    padding: 12px 15px;
-    border: 1px solid #dee2e6; /* Рамка вокруг заголовка */
-    font-weight: bold;
-}
-
-.table-fill td {
-    padding: 10px 15px;
-    border: 1px solid #dee2e6; /* Тонкая серая рамка */
-    vertical-align: middle;
-}
-
-/* Чередование строк (зебра) */
-.table-fill tbody tr:nth-child(odd) {
-    background-color: #ffffff; /* Белые строки */
-}
-
-.table-fill tbody tr:nth-child(even) {
-    background-color: #f8f9fa; /* Чуть темнее белые (светло-серый) */
-}
-
-/* Эффект при наведении мышкой */
-.table-fill tbody tr:hover {
-    background-color: #e2e6ea !important; /* Темно-серый при наведении */
-    transition: background-color 0.2s ease; /* Плавная анимация цвета */
-}
-
-/* Стилизация полей ввода внутри таблицы */
-.table-fill input[type="text"] {
-    width: 100%;
-    box-sizing: border-box; /* Учитываем padding внутри ширины */
-    padding: 8px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    outline: none;
-    font-size: 14px;
-}
-
-.table-fill input[type="text"]:focus {
-    border-color: #80bdff;
-    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
-}
-
-/* Ячейка-подсказка (уже заполненная учеником видеть не может менять) */
-.table-fill .hint-cell {
-    background-color: #f0f8ff; 
-    color: #0056b3; 
-    font-weight: bold;
-    text-align: center;
-}
-
-/* === СПИСОК ЗАДАНИЙ (ВКЛАДКА "ВСЕ ЗАДАНИЯ") === */
-.task-category-header { 
-    color: #0056b3; 
-    margin-top: 25px; 
-    margin-bottom: 10px; 
-    font-size: 18px; 
-    border-left: 4px solid #0056b3; /* Акцентная полоса слева */
-    padding-left: 10px; 
-}
-
-.tasks-list {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 20px 0; /* Отступ только снизу всего списка */
-    border: 1px solid #dee2e6;
+    margin: 4px 0;
+    border: 1px solid var(--border-table);
     border-radius: 6px;
-    overflow: hidden; /* Обрезаем дочерние элементы по скруглению */
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.tasks-item {
-    position: relative; /* Важно для абсолютного позиционирования полосы статуса */
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 15px 12px 20px; /* Компактный внутренний отступ, слева больше под полосу */
-    border-bottom: 1px solid #eee;
-    background-color: #ffffff; /* Белый фон по умолчанию */
-    transition: background-color 0.2s ease;
-}
-
-.tasks-item:last-child {
-    border-bottom: none; /* Убираем нижнюю границу у последнего элемента */
-}
-
-/* Зебра без лишних отступов */
-.tasks-item:nth-child(odd) { background-color: #ffffff; }
-.tasks-item:nth-child(even) { background-color: #f8f9fa; }
-
-.tasks-item:hover {
-    background-color: #e2e6ea !important; /* Более темный серый при наведении */
-    cursor: default;
-}
-
-/* Цветная полоса слева (индикатор статуса) */
-.tasks-item::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 5px; /* Ширина полосы */
-    z-index: 1;
-    background-color: transparent; /* По умолчанию прозрачно */
-}
-
-/* Статус: Правильно (Зеленый) */
-.tasks-item.status-correct::before {
-    background-color: #28a745; /* Зеленый Bootstrap success */
-}
-.tasks-item.status-correct {
-    background-color: #f0fdf4 !important; /* Очень светлый зеленый фон всей строки */
-}
-
-/* Статус: Неправильно (Красный) */
-.tasks-item.status-wrong::before {
-    background-color: #dc3545; /* Красный Bootstrap danger */
-}
-.tasks-item.status-wrong {
-    background-color: #fef2f2 !important; /* Очень светлый красный фон всей строки */
-}
-
-/* Тип вопроса (тег) */
-.task-type-badge {
-    font-weight: bold;
-    margin-right: 10px;
-    color: #555;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* Баллы */
-.task-points {
-    color: #777;
-    font-size: 13px;
-    margin-left: 15px;
-    white-space: nowrap;
-}
-
-/* Кнопки действий в списке заданий */
-.tasks-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-/* === РЕДАКТОР JSON === */
-#editor-area {
-    width: 100%;
-    height: 400px;
-    font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 13px;
-    padding: 15px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    resize: vertical;
-    background: #fafafa;
-}
-
-/* === АДАПТИВНОСТЬ (MEDIA QUERIES) === */
-@media (max-width: 768px) {
-    .container {
-        flex-direction: column;
-    }
-    .sidebar {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid #e0e0e0;
-        padding: 15px;
-    }
-    .main-content {
-        padding: 20px;
-    }
-    .tasks-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
-    .tasks-actions {
-        width: 100%;
-        justify-content: flex-end;
-    }
-}
-/* === УПЛОТНЕНИЕ ВАРИАНТОВ ОТВЕТА === */
-.options label {
-    display: flex;
-    align-items: center;
-    gap: 10px; /* Расстояние между радиокнопкой и текстом */
-    padding: 8px 12px; /* Компактный внутренний отступ */
-    margin: 4px 0; /* Небольшой отступ между вариантами */
-    border: 1px solid #dee2e6; /* Видимая граница варианта */
-    border-radius: 6px; /* Скругленные углы карточки варианта */
     cursor: pointer;
-    transition: all 0.2s ease; /* Плавная анимация всех свойств */
-    background-color: #fff; /* Белый фон по умолчанию */
+    transition: all 0.2s ease;
+    background-color: var(--bg-input);
+    color: var(--text-main);
 }
 
 .options label:hover {
-    background-color: #f1f3f5; /* Темнее при наведении */
-    border-color: #adb5bd; /* Граница становится темнее */
-    transform: translateY(-1px); /* Легкий подъем для эффекта "нажатия" */
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Лёгкая тень */
+    background-color: var(--bg-button-hover);
+    border-color: var(--border-input);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-/* Стиль выбранного варианта (когда radio checked) */
-.options input[type="radio"]:checked + span {
-    font-weight: bold;
-    color: #0056b3; /* Синий цвет текста выбранного ответа */
-}
-
-/* Саму радиокнопку можно чуть увеличить для удобства */
 .options input[type="radio"] {
     width: 18px;
     height: 18px;
-    accent-color: #0056b3; /* Цвет самой точки выбора */
+    accent-color: var(--accent);
     cursor: pointer;
 }
 
-/* === СТИЛИЗАЦИЯ КНОПОК НАВИГАЦИИ ТЕСТА === */
+/* === НАВИГАЦИЯ ТЕСТА === */
 .navigation {
     display: flex;
-    justify-content: space-between; /* Растягиваем кнопки по краям */
+    justify-content: space-between;
     align-items: center;
     margin-top: 25px;
     padding-top: 20px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--border-light);
 }
 
-/* Общий стиль для кнопок Назад/Вперёд */
 .btn-nav-test {
-    background: #ffffff;
-    color: #495057;
-    border: 1px solid #ced4da;
+    background: var(--bg-input);
+    color: var(--text-button);
+    border: 1px solid var(--border-cell);
     padding: 10px 20px;
     border-radius: 6px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
-    min-width: 100px; /* Чтобы кнопки были одинаковой ширины */
+    min-width: 100px;
     text-align: center;
 }
 
 .btn-nav-test:hover:not(:disabled) {
-    background: #f8f9fa;
-    border-color: #adb5bd;
-    color: #212529;
+    background: var(--bg-button-hover);
+    border-color: var(--border-input);
+    color: var(--text-main);
 }
 
 .btn-nav-test:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background: #e9ecef;
+    background: var(--bg-button);
 }
 
-/* Кнопка Завершить (выделенная) */
 .btn-finish {
-    background: #dc3545; /* Красный акцент */
+    background: #dc3545;
     color: white;
     border: none;
     padding: 10px 25px;
@@ -444,9 +297,218 @@ h1, h2, h3, h4 {
     transform: translateY(-1px);
 }
 
-/* Счетчик вопросов посередине */
 .counter-display {
     font-size: 14px;
-    color: #6c757d;
+    color: var(--text-light);
     font-weight: 500;
+}
+
+/* === ТАБЛИЦА ЗАПОЛНЕНИЯ === */
+.table-fill {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    font-size: 14px;
+    background: var(--bg-page);
+}
+
+.table-fill th {
+    background-color: var(--bg-table-header);
+    color: var(--text-main);
+    text-align: left;
+    padding: 12px 15px;
+    border: 1px solid var(--border-table);
+    font-weight: bold;
+}
+
+.table-fill td {
+    padding: 10px 15px;
+    border: 1px solid var(--border-table);
+    vertical-align: middle;
+    color: var(--text-main);
+}
+
+.table-fill tbody tr:nth-child(odd) {
+    background-color: var(--bg-table-row-odd);
+}
+
+.table-fill tbody tr:nth-child(even) {
+    background-color: var(--bg-table-row-even);
+}
+
+.table-fill tbody tr:hover {
+    background-color: var(--bg-table-hover) !important;
+    transition: background-color 0.2s ease;
+}
+
+.table-fill input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid var(--border-cell);
+    border-radius: 4px;
+    outline: none;
+    font-size: 14px;
+    background: var(--bg-input);
+    color: var(--text-main);
+}
+
+.table-fill input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0.2rem rgba(74, 158, 255, 0.25);
+}
+
+/* === СПИСОК ЗАДАНИЙ === */
+.task-category-header { 
+    color: var(--accent); 
+    margin-top: 25px; 
+    margin-bottom: 10px; 
+    font-size: 18px; 
+    border-left: 4px solid var(--accent);
+    padding-left: 10px; 
+}
+
+.tasks-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px 0;
+    border: 1px solid var(--border-table);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.tasks-item {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px 12px 20px;
+    border-bottom: 1px solid var(--border-light);
+    background-color: var(--bg-task-item);
+    transition: background-color 0.2s ease;
+    color: var(--text-main);
+}
+
+.tasks-item:last-child {
+    border-bottom: none;
+}
+
+.tasks-item:nth-child(odd) { background-color: var(--bg-task-item); }
+.tasks-item:nth-child(even) { background-color: var(--bg-task-item-even); }
+
+.tasks-item:hover {
+    background-color: var(--bg-task-item-hover) !important;
+    cursor: default;
+}
+
+.tasks-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    z-index: 1;
+    background-color: transparent;
+}
+
+.tasks-item.status-correct::before {
+    background-color: #28a745;
+}
+.tasks-item.status-correct {
+    background-color: var(--bg-status-correct) !important;
+}
+
+.tasks-item.status-wrong::before {
+    background-color: #dc3545;
+}
+.tasks-item.status-wrong {
+    background-color: var(--bg-status-wrong) !important;
+}
+
+.task-type-badge {
+    font-weight: bold;
+    margin-right: 10px;
+    color: var(--text-muted);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.task-points {
+    color: var(--text-light);
+    font-size: 13px;
+    margin-left: 15px;
+    white-space: nowrap;
+}
+
+.tasks-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* === РЕДАКТОР JSON === */
+#editor-area {
+    width: 100%;
+    height: 400px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    padding: 15px;
+    border: 1px solid var(--border-input);
+    border-radius: 4px;
+    resize: vertical;
+    background: var(--bg-editor);
+    color: var(--text-main);
+}
+
+/* === КНОПКА ПЕРЕКЛЮЧЕНИЯ ТЕМЫ === */
+.theme-toggle-btn {
+    width: 100%;
+    padding: 10px 15px;
+    background: var(--bg-button);
+    color: var(--text-button);
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.theme-toggle-btn:hover {
+    background: var(--bg-button-hover);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* === АДАПТИВНОСТЬ === */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border-main);
+        padding: 15px;
+    }
+    .main-content {
+        padding: 20px;
+    }
+    .tasks-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .tasks-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
 }
