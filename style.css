@@ -201,3 +201,79 @@ h1, h2, h3, h4 { color: var(--accent); margin-top: 0; margin-bottom: 15px; }
 .topic-check-label:hover {
     background: var(--bg-menu-hover);
 }
+
+/* Бейдж счётчика */
+.badge {
+    display: inline-block;
+    background: #dc3545;
+    color: white;
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-left: 8px;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* Карточка ответа на модерацию */
+.moderation-card {
+    background: var(--bg-page);
+    border: 1px solid var(--border-table);
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 10px;
+    position: relative;
+}
+
+.moderation-card.status-pending { border-left: 4px solid #ffc107; }
+.moderation-card.status-approved { border-left: 4px solid #28a745; }
+.moderation-card.status-rejected { border-left: 4px solid #dc3545; }
+
+.moderation-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-light);
+}
+
+.moderation-question {
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: var(--text-main);
+}
+
+.moderation-answer {
+    background: var(--bg-input);
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-family: monospace;
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+.moderation-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.btn-approve {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 6px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-reject {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 6px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}

@@ -30,7 +30,10 @@
                 <p style="font-size:14px;">Привет, <span id="username-display"></span></p>
                 <button onclick="logout()" class="btn-nav" style="width:100%;">Выход</button>
             </div>
-			
+			<a href="#" id="moderation-link" style="display:none;" onclick="openModeration(); return false;" class="menu-item">
+				📋 Проверка ответов
+				<span id="moderation-badge" class="badge" style="display:none;"></span>
+			</a>
 			<button id="theme-toggle" class="theme-toggle-btn" onclick="toggleTheme()">🌙 Тёмная тема</button>
         </aside>
 
@@ -87,6 +90,19 @@
 				
 				<br>
 				<button onclick="goHome()" class="btn-primary">На главную</button>
+			</div>
+			
+			<div id="moderation-page" class="page">
+				<h2>Проверка ответов</h2>
+				<div id="moderation-filters" style="margin-bottom:15px;">
+					<button onclick="filterModeration('pending')" class="btn-nav">Ожидают проверки</button>
+					<button onclick="filterModeration('approved')" class="btn-nav">Принятые</button>
+					<button onclick="filterModeration('rejected')" class="btn-nav">Отклонённые</button>
+					<button onclick="filterModeration('all')" class="btn-nav">Все</button>
+				</div>
+				<div id="moderation-container">
+					<p>Загрузка...</p>
+				</div>
 			</div>
 
             <!-- Страница Редактора (Admin) -->

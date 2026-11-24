@@ -28,6 +28,20 @@ async function apiPut(route, contentStr) {
     return txt;
 }
 
+async function apiPost(route, bodyObj) {
+    const r = await fetch(`${WORKER_URL}/api/${route}`, {
+        method: "POST",
+        headers: { 
+            "X-Admin-Key": ADMIN_KEY, 
+            "X-Reviewer": currentUser ? currentUser.login : "unknown",
+            "Content-Type": "application/json" 
+        },
+        body: JSON.stringify(bodyObj)
+    });
+    if (!r.ok) throw new Error(`POST ${route}: ${r.status} ${await r.text()}`);
+    return r.json();
+}
+
 // === ИСТОРИЯ ОТВЕТОВ ===
 async function loadUserHistory(login) {
     try {
@@ -38,8 +52,55 @@ async function loadUserHistory(login) {
 }
 
 async function saveUserHistory(login, historyData) {
-    try { await apiPut(`results/${login}`, JSON.stringify(historyData, null, 2)); } 
-    catch (e) { console.error("Ошибка сохранения истории:", e); }
+    try {
+        await apiPut(`results/${login}`, JSON.stringify(historyData, null, 2));
+    } catch (e) {
+        console.error("Ошибка сохранения истории:", e);
+    }
+}
+
+// === МОДЕРАЦИЯ (SUBMISSIONS) ===
+async function loadSubmissions() {
+    try {
+        const res = await fetch(`${WORKER_URL}/api/submissions`);
+        if (!res.ok) return [];
+        return JSON.parse(await res.text());
+    } catch (e) { return []; }
+}
+
+async function updateSubmissionStatus(submissionId, status) {
+    try {
+        await apiPost(`submissions/${submissionId}`, { status });
+    } catch (e) {
+        console.error("Ошибка обновления статуса:", e);
+    }
+}
+
+async function submitForModeration(question, answer) {
+    if (!currentUser) return;
+    
+    const submission = {
+        id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        questionId: question.id,
+        questionText: question.text,
+        questionType: question.type,
+        userId: currentUser.login,
+        userName: currentUser.name,
+        answer: answer,
+        correctAnswer: question.type === 'table_fill' 
+            ? question.rows.map(r => r.cells.map(c => c.value).join(' / ')).join('; ')
+            : (question.accepted_answers || []).join(', '),
+        timestamp: new Date().toISOString(),
+        status: "pending"
+    };
+    
+    try {
+        const subs = await loadSubmissions();
+        subs.push(submission);
+        await apiPut('submissions', JSON.stringify(subs, null, 2));
+    } catch (e) {
+        console.error("Ошибка отправки на модерацию:", e);
+    }
 }
 
 // === ЗАГРУЗКА ДАННЫХ ===
@@ -87,6 +148,7 @@ function updateUIForLoggedInUser() {
     const adminLink = document.getElementById("admin-link");
     const accountsLink = document.getElementById("accounts-link");
     const tasksBtn = document.getElementById("btn-add-question");
+    const moderationLink = document.getElementById("moderation-link");
 
     if (currentUser) {
         if (authSection) authSection.style.display = "none";
@@ -96,12 +158,15 @@ function updateUIForLoggedInUser() {
         if (adminLink) adminLink.style.display = isAdmin ? "block" : "none";
         if (accountsLink) accountsLink.style.display = isAdmin ? "block" : "none";
         if (tasksBtn) tasksBtn.style.display = isAdmin ? "inline-block" : "none";
+        if (moderationLink) moderationLink.style.display = isAdmin ? "block" : "none";
+        if (isAdmin) updateModerationBadge();
     } else {
         if (authSection) authSection.style.display = "block";
         if (userInfo) userInfo.style.display = "none";
         if (adminLink) adminLink.style.display = "none";
         if (accountsLink) accountsLink.style.display = "none";
         if (tasksBtn) tasksBtn.style.display = "none";
+        if (moderationLink) moderationLink.style.display = "none";
     }
 }
 
@@ -111,6 +176,7 @@ function showPage(id) {
     const target = document.getElementById(id);
     if (target) target.classList.add("active");
 }
+
 function goHome() { showPage("home"); }
 
 // === ТЕСТ: ВЫБОР ТЕМ ===
@@ -228,24 +294,24 @@ function saveTableAnswer(qId, key, val) {
 function nextQ() { if (currentQIndex < questions.length - 1) { currentQIndex++; renderQ(); } }
 function prevQ() { if (currentQIndex > 0) { currentQIndex--; renderQ(); } }
 
+// === ПОДСЧЁТ РЕЗУЛЬТАТА ===
 async function finishTest() {
     let score = 0;
     let maxScore = 0;
     const reviewItems = [];
 
-    questions.forEach(q => {
+    for (const q of questions) {
         maxScore += q.points;
         const ans = userAnswers[q.id];
         let isCorrect = false;
         let detailText = "";
-        let earnedPoints = 0; // Баллы, заработанные за этот конкретный вопрос
+        let earnedPoints = 0;
 
         if (q.type === "multiple_choice") {
             isCorrect = (ans === q.correct_index);
             earnedPoints = isCorrect ? q.points : 0;
             const userOpt = (ans !== undefined && ans !== null) ? q.options[ans] : "(нет ответа)";
-            const correctOpt = q.options[q.correct_index];
-            detailText = `Ваш ответ: ${userOpt} | Правильный: ${correctOpt}`;
+            detailText = `Ваш ответ: ${userOpt} | Правильный: ${q.options[q.correct_index]}`;
         } 
         else if (q.type === "text_input") {
             if (ans && q.accepted_answers) {
@@ -254,36 +320,44 @@ async function finishTest() {
             }
             earnedPoints = isCorrect ? q.points : 0;
             detailText = `Ваш ответ: ${ans || "(пусто)"} | Правильные: ${(q.accepted_answers || []).join(", ")}`;
+            
+            // Отправляем на модерацию
+            if (ans) {
+                await submitForModeration(q, ans);
+                detailText += " | Ожидает проверки администратором";
+            }
         } 
         else if (q.type === "table_fill" && ans) {
             let correctCells = 0;
             let totalTaskCells = 0; 
             
             q.rows.forEach((r, rowIndex) => {
-                r.cells.forEach((cell, colIndex) => {
-                    if (cell.is_hint) return; 
-                    totalTaskCells++;
-                    const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
-                    const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
-                    const correctVal = (cell.value || "").toLowerCase().trim();
-                    
-                    if (correctVal === "") return; 
-                    if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) {
-                        correctCells++;
-                    }
-                });
+                if (r.cells) {
+                    r.cells.forEach((cell, colIndex) => {
+                        if (cell.is_hint) return; 
+                        totalTaskCells++;
+                        const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+                        const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
+                        const correctVal = (cell.value || "").toLowerCase().trim();
+                        if (correctVal === "") return;
+                        if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) {
+                            correctCells++;
+                        }
+                    });
+                }
             });
             
             if (totalTaskCells > 0) {
                 earnedPoints = Math.round((correctCells / totalTaskCells) * q.points);
-                if (correctCells === totalTaskCells) {
-                    isCorrect = true;
-                }
+                if (correctCells === totalTaskCells) isCorrect = true;
             }
             detailText = `Верно ячеек: ${correctCells}/${totalTaskCells}`;
+            
+            // Отправляем на модерацию
+            await submitForModeration(q, ans);
+            detailText += " | Ожидает проверки";
         }
 
-        // Добавляем баллы ТОЛЬКО ОДИН РАЗ
         score += earnedPoints;
 
         reviewItems.push({
@@ -294,7 +368,7 @@ async function finishTest() {
             detail: detailText,
             type: q.type
         });
-    });
+    }
 
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
     document.getElementById("score-display").innerText = `Итог: ${score} из ${maxScore} баллов (${percent}%)`;
@@ -515,17 +589,13 @@ function fillSpecificFields(q) {
             list.appendChild(div);
         });
         document.getElementById('mc-correct-index').value = q.correct_index;
-    } 
-    else if (q.type === 'text_input') {
+    } else if (q.type === 'text_input') {
         document.getElementById('ti-accepted').value = (q.accepted_answers || []).join(', ');
-    } 
-    else if (q.type === 'table_fill') {
+    } else if (q.type === 'table_fill') {
         document.getElementById('tf-headers').value = (q.headers || []).join(', ');
         const rowsList = document.getElementById('tf-rows-list');
         rowsList.innerHTML = '';
-        
         if (q.rows && q.rows[0] && q.rows[0].cells) {
-            // Новый формат
             q.rows.forEach((r, rowIdx) => {
                 const div = document.createElement('div');
                 div.className = 'tf-row-block';
@@ -537,7 +607,6 @@ function fillSpecificFields(q) {
                 rowsList.appendChild(div);
             });
         } else if (q.rows && q.rows[0] && q.rows[0].label !== undefined) {
-            // Старый формат
             q.rows.forEach(r => {
                 const div = document.createElement('div');
                 div.className = 'tf-row-block';
@@ -679,16 +748,119 @@ async function saveNewQuestion() {
     }
 }
 
+// === МОДЕРАЦИЯ: ВКЛАДКА АДМИНА ===
+let currentModerationFilter = 'pending';
+
+async function openModeration() {
+    if (!currentUser || currentUser.role !== 'admin') {
+        alert("Доступ только для администраторов");
+        return;
+    }
+    showPage('moderation-page');
+    await renderModeration();
+}
+
+async function renderModeration() {
+    const container = document.getElementById('moderation-container');
+    const subs = await loadSubmissions();
+    
+    const filtered = currentModerationFilter === 'all' 
+        ? subs 
+        : subs.filter(s => s.status === currentModerationFilter);
+    
+    if (filtered.length === 0) {
+        container.innerHTML = '<p>Нет ответов для отображения.</p>';
+        return;
+    }
+    
+    filtered.sort((a, b) => {
+        if (a.status === 'pending' && b.status !== 'pending') return -1;
+        if (a.status !== 'pending' && b.status === 'pending') return 1;
+        return new Date(b.timestamp) - new Date(a.timestamp);
+    });
+    
+    let html = '';
+    filtered.forEach(sub => {
+        const statusLabel = sub.status === 'pending' ? '⏳ Ожидает' 
+            : sub.status === 'approved' ? '✓ Принят' : '✗ Отклонён';
+        
+        html += `
+            <div class="moderation-card status-${sub.status}">
+                <div class="moderation-header">
+                    <span><strong>${sub.userName}</strong> (${sub.userId})</span>
+                    <span>${new Date(sub.timestamp).toLocaleString('ru-RU')} | ${statusLabel}</span>
+                </div>
+                <div class="moderation-question">
+                    [${sub.questionType === 'table_fill' ? 'Таблица' : 'Текст'}] ${sub.questionText}
+                </div>
+                <div style="font-size:12px; color:var(--text-light); margin-bottom:5px;">Ответ ученика:</div>
+                <div class="moderation-answer">${formatAnswer(sub.answer, sub.questionType)}</div>
+                <div style="font-size:12px; color:var(--text-light); margin-bottom:5px;">Эталон:</div>
+                <div class="moderation-answer" style="background:var(--bg-status-correct);">${sub.correctAnswer}</div>
+                ${sub.status === 'pending' ? `
+                    <div class="moderation-actions">
+                        <button onclick="handleModeration('${sub.id}', 'approved')" class="btn-approve">✓ Принять</button>
+                        <button onclick="handleModeration('${sub.id}', 'rejected')" class="btn-reject">✗ Отклонить</button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function formatAnswer(answer, type) {
+    if (type === 'table_fill' && typeof answer === 'object') {
+        return Object.entries(answer).map(([k, v]) => `${k}: ${v}`).join('<br>');
+    }
+    return String(answer);
+}
+
+function filterModeration(filter) {
+    currentModerationFilter = filter;
+    renderModeration();
+}
+
+async function handleModeration(submissionId, status) {
+    await updateSubmissionStatus(submissionId, status);
+    await renderModeration();
+    updateModerationBadge();
+}
+
+async function updateModerationBadge() {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    
+    const subs = await loadSubmissions();
+    const pendingCount = subs.filter(s => s.status === 'pending').length;
+    
+    const badge = document.getElementById('moderation-badge');
+    const link = document.getElementById('moderation-link');
+    
+    if (link) link.style.display = 'block';
+    
+    if (badge) {
+        if (pendingCount > 0) {
+            badge.innerText = pendingCount;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
 // === ПЕРЕКЛЮЧЕНИЕ ТЕМЫ ===
 function toggleTheme() {
     const isDark = document.body.classList.toggle('dark-theme');
     localStorage.setItem('biology_theme', isDark ? 'dark' : 'light');
     updateThemeButton(isDark);
 }
+
 function updateThemeButton(isDark) {
     const btn = document.getElementById('theme-toggle');
     if (btn) btn.innerText = isDark ? '☀️ Светлая тема' : '🌙 Тёмная тема';
 }
+
 function applySavedTheme() {
     const saved = localStorage.getItem('biology_theme');
     if (saved === 'dark') { document.body.classList.add('dark-theme'); updateThemeButton(true); } 
@@ -701,7 +873,12 @@ window.onload = async () => {
     await loadData();
     const savedUser = localStorage.getItem("biology_user");
     if (savedUser) {
-        try { currentUser = JSON.parse(savedUser); updateUIForLoggedInUser(); } 
-        catch { currentUser = null; localStorage.removeItem("biology_user"); }
+        try {
+            currentUser = JSON.parse(savedUser);
+            updateUIForLoggedInUser();
+        } catch {
+            currentUser = null;
+            localStorage.removeItem("biology_user");
+        }
     }
 };
