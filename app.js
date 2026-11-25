@@ -474,19 +474,32 @@ async function deleteAccount(index) {
     try { await apiPut("users", JSON.stringify(users, null, 2)); openAccountsManager(); } catch (e) { alert("Ошибка: " + e.message); }
 }
 
-// === ВКЛАДКА ЗАДАНИЯ ===
 async function openTasksList() {
     showPage('tasks-page');
     const btnAdd = document.getElementById('btn-add-question');
-    if (currentUser && currentUser.role === 'admin') { if (btnAdd) btnAdd.style.display = 'inline-block'; } 
-    else { if (btnAdd) btnAdd.style.display = 'none'; }
+    if (currentUser && currentUser.role === 'admin') {
+        if (btnAdd) btnAdd.style.display = 'inline-block';
+    } else {
+        if (btnAdd) btnAdd.style.display = 'none';
+    }
     const formContainer = document.getElementById('add-form-container');
     if (formContainer) formContainer.style.display = 'none';
-    let userHistory = currentUser ? await loadUserHistory(currentUser.login) : {};
-    loadAndRenderTasks(userHistory);
+
+    // Загружаем историю И submissions параллельно
+    let userHistory = {};
+    let submissions = [];
+    if (currentUser) {
+        const [history, subs] = await Promise.all([
+            loadUserHistory(currentUser.login),
+            loadSubmissions()
+        ]);
+        userHistory = history;
+        submissions = subs;
+    }
+    loadAndRenderTasks(userHistory, submissions);
 }
 
-async function loadAndRenderTasks(userHistory = {}) {
+async function loadAndRenderTasks(userHistory = {}, submissions = []) {
     const container = document.getElementById('tasks-list-container');
     try {
         const data = JSON.parse(await apiGet('questions'));
@@ -496,40 +509,87 @@ async function loadAndRenderTasks(userHistory = {}) {
         } else {
             const isAdmin = currentUser && currentUser.role === 'admin';
             data.categories.forEach((cat, catIndex) => {
-                html += `<h4 class="task-category-header">${cat.name}</h4><ul class="tasks-list">`;
+                html += `<h4 class="task-category-header">${cat.name}</h4>`;
+                html += '<ul class="tasks-list">';
                 cat.questions.forEach((q, qIndexInCat) => {
-                    let typeName = q.type === 'multiple_choice' ? "[Выбор]" : q.type === 'text_input' ? "[Текст]" : "[Таблица]";
+                    let typeName = q.type === 'multiple_choice' ? "[Выбор]" 
+                        : q.type === 'text_input' ? "[Текст]" : "[Таблица]";
+                    
                     let statusClass = "";
                     const savedAns = userHistory[q.id];
+                    
                     if (savedAns !== undefined) {
                         let isCorrect = false;
-                        if (q.type === 'multiple_choice') isCorrect = (savedAns === q.correct_index);
-                        else if (q.type === 'text_input' && q.accepted_answers) {
-                            isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === String(savedAns).toLowerCase().trim());
-                        } else if (q.type === 'table_fill' && q.rows && q.rows[0] && q.rows[0].cells) {
-                            let correctCells = 0, totalCells = 0;
-                            q.rows.forEach((r, rowIndex) => {
-                                r.cells.forEach((cell, colIndex) => {
-                                    if (cell.is_hint) return;
-                                    totalCells++;
-                                    const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
-                                    const userVal = (savedAns[uniqueKey] || "").toLowerCase().trim();
-                                    const correctVal = (cell.value || "").toLowerCase().trim();
-                                    if (correctVal === "") return;
-                                    if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) correctCells++;
+                        
+                        if (q.type === 'multiple_choice') {
+                            isCorrect = (savedAns === q.correct_index);
+                        } 
+                        else if (q.type === 'text_input') {
+                            // Сначала проверяем модерацию
+                            const approvedSub = submissions.find(s => 
+                                s.questionId === q.id && 
+                                s.userId === currentUser?.login && 
+                                s.status === 'approved'
+                            );
+                            if (approvedSub) {
+                                isCorrect = true;
+                            } else if (q.accepted_answers && Array.isArray(q.accepted_answers)) {
+                                const normalizedAns = String(savedAns).toLowerCase().trim();
+                                isCorrect = q.accepted_answers.some(acc => 
+                                    acc.toLowerCase().trim() === normalizedAns
+                                );
+                            }
+                        } 
+                        else if (q.type === 'table_fill') {
+                            // Сначала проверяем модерацию
+                            const approvedSub = submissions.find(s => 
+                                s.questionId === q.id && 
+                                s.userId === currentUser?.login && 
+                                s.status === 'approved'
+                            );
+                            if (approvedSub) {
+                                isCorrect = true;
+                            } else if (q.rows && q.rows[0] && q.rows[0].cells) {
+                                let correctCells = 0, totalCells = 0;
+                                q.rows.forEach((r, rowIndex) => {
+                                    r.cells.forEach((cell, colIndex) => {
+                                        if (cell.is_hint) return;
+                                        totalCells++;
+                                        const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
+                                        const userVal = (savedAns[uniqueKey] || "").toLowerCase().trim();
+                                        const correctVal = (cell.value || "").toLowerCase().trim();
+                                        if (correctVal === "") return;
+                                        if (userVal && (userVal === correctVal || 
+                                            userVal.includes(correctVal) || 
+                                            correctVal.includes(userVal))) {
+                                            correctCells++;
+                                        }
+                                    });
                                 });
-                            });
-                            isCorrect = (totalCells > 0 && correctCells === totalCells);
+                                isCorrect = (totalCells > 0 && correctCells === totalCells);
+                            }
                         }
+                        
                         statusClass = isCorrect ? "status-correct" : "status-wrong";
                     }
-                    html += `<li class="tasks-item ${statusClass}">
-                        <div style="flex-grow:1; padding-left: 10px;"><span class="task-type-badge">${typeName}</span> ${q.text}</div>
-                        <div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">
-                            <span class="task-points">${q.points} балл</span>`;
+                    
+                    html += `<li class="tasks-item ${statusClass}">`;
+                    html += `<div style="flex-grow:1; padding-left: 10px;">
+                                <span class="task-type-badge">${typeName}</span> ${q.text} 
+                             </div>`;
+                    html += `<div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">`;
+                    html += `<span class="task-points">${q.points} балл</span>`;
                     if (isAdmin) {
-                        html += `<button onclick="editQuestion(${catIndex}, ${qIndexInCat})" class="btn-nav" style="background:#ffc107; color:black; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">Изменить</button>
-                                 <button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" class="btn-nav" style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">Удалить</button>`;
+                        html += `<button onclick="editQuestion(${catIndex}, ${qIndexInCat})" 
+                                         class="btn-nav" 
+                                         style="background:#ffc107; color:black; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">
+                                     Изменить
+                                 </button>`;
+                        html += `<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" 
+                                         class="btn-nav" 
+                                         style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">
+                                     Удалить
+                                 </button>`;
                     }
                     html += `</div></li>`;
                 });
