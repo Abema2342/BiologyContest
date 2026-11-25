@@ -589,13 +589,16 @@ function fillSpecificFields(q) {
             list.appendChild(div);
         });
         document.getElementById('mc-correct-index').value = q.correct_index;
-    } else if (q.type === 'text_input') {
+    } 
+    else if (q.type === 'text_input') {
         document.getElementById('ti-accepted').value = (q.accepted_answers || []).join(', ');
-    } else if (q.type === 'table_fill') {
+    } 
+    else if (q.type === 'table_fill') {
         document.getElementById('tf-headers').value = (q.headers || []).join(', ');
         const rowsList = document.getElementById('tf-rows-list');
         rowsList.innerHTML = '';
         if (q.rows && q.rows[0] && q.rows[0].cells) {
+            // Новый формат
             q.rows.forEach((r, rowIdx) => {
                 const div = document.createElement('div');
                 div.className = 'tf-row-block';
@@ -607,6 +610,7 @@ function fillSpecificFields(q) {
                 rowsList.appendChild(div);
             });
         } else if (q.rows && q.rows[0] && q.rows[0].label !== undefined) {
+            // Старый формат
             q.rows.forEach(r => {
                 const div = document.createElement('div');
                 div.className = 'tf-row-block';
