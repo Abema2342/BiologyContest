@@ -1,6 +1,6 @@
 // === КОНСТАНТЫ ===
 const WORKER_URL = "https://biologycontest.kmaxim242.workers.dev";
-const ADMIN_KEY  = "abema2342";
+const ADMIN_KEY = "abema2342";
 
 // === ГЛОБАЛЬНОЕ СОСТОЯНИЕ ===
 let allCategories = [];
@@ -10,7 +10,17 @@ let currentQIndex = 0;
 let userAnswers = {};
 let editingContext = null;
 
-// === ТРАНСПОРТ ДО WORKER ===
+// === ШАФЛ (Fisher-Yates) ===
+function shuffle(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+// === ТРАНСПОРТ ===
 async function apiGet(route) {
     const r = await fetch(`${WORKER_URL}/api/${route}`);
     if (!r.ok) throw new Error(`GET ${route}: ${r.status} ${await r.text()}`);
@@ -31,10 +41,10 @@ async function apiPut(route, contentStr) {
 async function apiPost(route, bodyObj) {
     const r = await fetch(`${WORKER_URL}/api/${route}`, {
         method: "POST",
-        headers: { 
-            "X-Admin-Key": ADMIN_KEY, 
+        headers: {
+            "X-Admin-Key": ADMIN_KEY,
             "X-Reviewer": currentUser ? currentUser.login : "unknown",
-            "Content-Type": "application/json" 
+            "Content-Type": "application/json"
         },
         body: JSON.stringify(bodyObj)
     });
@@ -42,7 +52,7 @@ async function apiPost(route, bodyObj) {
     return r.json();
 }
 
-// === ИСТОРИЯ ОТВЕТОВ ===
+// === ИСТОРИЯ ===
 async function loadUserHistory(login) {
     try {
         const res = await fetch(`${WORKER_URL}/api/results/${login}`);
@@ -54,12 +64,10 @@ async function loadUserHistory(login) {
 async function saveUserHistory(login, historyData) {
     try {
         await apiPut(`results/${login}`, JSON.stringify(historyData, null, 2));
-    } catch (e) {
-        console.error("Ошибка сохранения истории:", e);
-    }
+    } catch (e) { console.error("Ошибка сохранения истории:", e); }
 }
 
-// === МОДЕРАЦИЯ (SUBMISSIONS) ===
+// === МОДЕРАЦИЯ ===
 async function loadSubmissions() {
     try {
         const res = await fetch(`${WORKER_URL}/api/submissions`);
@@ -71,14 +79,11 @@ async function loadSubmissions() {
 async function updateSubmissionStatus(submissionId, status) {
     try {
         await apiPost(`submissions/${submissionId}`, { status });
-    } catch (e) {
-        console.error("Ошибка обновления статуса:", e);
-    }
+    } catch (e) { console.error("Ошибка обновления статуса:", e); }
 }
 
 async function submitForModeration(question, answer) {
     if (!currentUser) return;
-    
     const submission = {
         id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         questionId: question.id,
@@ -87,20 +92,17 @@ async function submitForModeration(question, answer) {
         userId: currentUser.login,
         userName: currentUser.name,
         answer: answer,
-        correctAnswer: question.type === 'table_fill' 
+        correctAnswer: question.type === 'table_fill'
             ? question.rows.map(r => r.cells.map(c => c.value).join(' / ')).join('; ')
             : (question.accepted_answers || []).join(', '),
         timestamp: new Date().toISOString(),
         status: "pending"
     };
-    
     try {
         const subs = await loadSubmissions();
         subs.push(submission);
         await apiPut('submissions', JSON.stringify(subs, null, 2));
-    } catch (e) {
-        console.error("Ошибка отправки на модерацию:", e);
-    }
+    } catch (e) { console.error("Ошибка отправки на модерацию:", e); }
 }
 
 // === ЗАГРУЗКА ДАННЫХ ===
@@ -140,7 +142,7 @@ function logout() {
     location.reload();
 }
 
-// === ОБНОВЛЕНИЕ UI ===
+// === UI ===
 function updateUIForLoggedInUser() {
     const authSection = document.getElementById("auth-section");
     const userInfo = document.getElementById("user-info");
@@ -170,7 +172,6 @@ function updateUIForLoggedInUser() {
     }
 }
 
-// === НАВИГАЦИЯ ===
 function showPage(id) {
     document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
     const target = document.getElementById(id);
@@ -196,12 +197,10 @@ function renderTopicSelection() {
     if (!container) return;
     let html = '';
     allCategories.forEach((cat, index) => {
-        html += `
-            <label class="topic-check-label">
-                <input type="checkbox" class="topic-check" value="${index}" checked> 
-                <strong>${cat.name}</strong> (${cat.questions.length} вопр.)
-            </label>
-        `;
+        html += `<label class="topic-check-label">
+            <input type="checkbox" class="topic-check" value="${index}" checked>
+            <strong>${cat.name}</strong> (${cat.questions.length} вопр.)
+        </label>`;
     });
     container.innerHTML = html;
 }
@@ -215,16 +214,16 @@ function startSelectedTest() {
         if (cat && cat.questions) selectedQuestions = selectedQuestions.concat(cat.questions);
     });
     if (selectedQuestions.length === 0) { alert("В выбранных темах нет вопросов."); return; }
-    questions = selectedQuestions;
+    questions = shuffle(selectedQuestions);
     currentQIndex = 0;
-    userAnswers = {}; 
+    userAnswers = {};
     document.getElementById('topic-selection-screen').style.display = 'none';
     document.getElementById('test-running-screen').style.display = 'block';
     renderQ();
 }
 
 function startFullTest() {
-    questions = allCategories.flatMap(c => c.questions);
+    questions = shuffle(allCategories.flatMap(c => c.questions));
     currentQIndex = 0;
     userAnswers = {};
     document.getElementById('topic-selection-screen').style.display = 'none';
@@ -240,14 +239,27 @@ function renderQ() {
 
     if (q.type === "multiple_choice") {
         html += '<div class="options">';
-        q.options.forEach((opt, i) => {
-            const checked = userAnswers[q.id] === i ? "checked" : "";
-            html += `<label><input type="radio" name="ans-${q.id}" value="${i}" ${checked} onchange="saveAnswer(${q.id}, ${i})"> ${opt}</label>`;
+        const isMulti = q.is_multi_select === true;
+        const inputType = isMulti ? 'checkbox' : 'radio';
+        const shuffledOptions = shuffle(q.options.map((opt, idx) => ({ idx, opt })));
+        shuffledOptions.forEach(({ idx, opt }) => {
+            let checked = "";
+            if (isMulti) {
+                const currentAns = Array.isArray(userAnswers[q.id]) ? userAnswers[q.id] : [];
+                checked = currentAns.includes(idx) ? "checked" : "";
+            } else {
+                checked = userAnswers[q.id] === idx ? "checked" : "";
+            }
+            html += `<label>
+                <input type="${inputType}" name="ans-${q.id}" value="${idx}" ${checked}
+                       onchange="saveAnswer(${q.id}, ${idx}, ${isMulti})">
+                ${opt}
+            </label>`;
         });
         html += "</div>";
     } else if (q.type === "text_input") {
-        const val = userAnswers[q.id] || "";
-        html += `<input type="text" class="text-input" value="${val}" placeholder="Введите ответ..." onchange="saveAnswer(${q.id}, this.value)">`;
+        const val = userAnswers[q.id] !== undefined ? String(userAnswers[q.id]) : "";
+        html += `<input type="text" class="text-input" value="${val}" placeholder="Введите ответ..." oninput="saveAnswerText(${q.id}, this.value)">`;
     } else if (q.type === "table_fill") {
         html += `<table class="table-fill">`;
         if (q.headers && q.headers.length > 0) {
@@ -255,12 +267,14 @@ function renderQ() {
         }
         html += `<tbody>`;
         const isOldFormat = q.rows && q.rows.length > 0 && q.rows[0].label !== undefined && !q.rows[0].cells;
-        q.rows.forEach((r, rowIndex) => {
+        const shuffledRows = shuffle(q.rows);
+        shuffledRows.forEach((r, rowIndex) => {
             html += `<tr>`;
             if (isOldFormat) {
                 const val = (userAnswers[q.id] && userAnswers[q.id][r.key]) || "";
                 html += `<td>${r.label || ""}</td>`;
-                html += `<td><input type="text" class="text-input" value="${val}" onchange="saveTableAnswer('${q.id}', '${r.key}', this.value)" placeholder="..."></td>`;
+                html += `<td><input type="text" class="text-input" value="${val}"
+                         oninput="saveTableAnswer('${q.id}', '${r.key}', this.value)" placeholder="..."></td>`;
             } else {
                 r.cells.forEach((cell, colIndex) => {
                     const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
@@ -268,7 +282,8 @@ function renderQ() {
                         html += `<td class="hint-cell">${cell.value}</td>`;
                     } else {
                         const userVal = (userAnswers[q.id] && userAnswers[q.id][uniqueKey]) || "";
-                        html += `<td><input type="text" class="text-input" value="${userVal}" onchange="saveTableAnswer('${q.id}', '${uniqueKey}', this.value)" placeholder="..."></td>`;
+                        html += `<td><input type="text" class="text-input" value="${userVal}"
+                                 oninput="saveTableAnswer('${q.id}', '${uniqueKey}', this.value)" placeholder="..."></td>`;
                     }
                 });
             }
@@ -279,20 +294,47 @@ function renderQ() {
     html += "</div>";
     document.getElementById("q-container").innerHTML = html;
     document.getElementById("counter").innerText = `${currentQIndex + 1} / ${questions.length}`;
-    
     const btnPrev = document.getElementById('btn-prev');
     const btnNext = document.getElementById('btn-next');
     if (btnPrev) btnPrev.disabled = currentQIndex === 0;
     if (btnNext) btnNext.disabled = currentQIndex === questions.length - 1;
 }
 
-function saveAnswer(qId, val) { userAnswers[qId] = val; }
+function saveAnswer(qId, val, isMulti = false) {
+    if (isMulti) {
+        if (!Array.isArray(userAnswers[qId])) userAnswers[qId] = [];
+        const numVal = parseInt(val);
+        const index = userAnswers[qId].indexOf(numVal);
+        if (index > -1) {
+            userAnswers[qId].splice(index, 1);
+        } else {
+            userAnswers[qId].push(numVal);
+        }
+    } else {
+        userAnswers[qId] = parseInt(val);
+    }
+}
+
+function saveAnswerText(qId, val) {
+    userAnswers[qId] = String(val);
+}
+
 function saveTableAnswer(qId, key, val) {
     if (!userAnswers[qId]) userAnswers[qId] = {};
-    userAnswers[qId][key] = val;
+    userAnswers[qId][key] = String(val);
 }
+
 function nextQ() { if (currentQIndex < questions.length - 1) { currentQIndex++; renderQ(); } }
 function prevQ() { if (currentQIndex > 0) { currentQIndex--; renderQ(); } }
+
+// === ВСПОМОГАТЕЛЬНАЯ: сравнение массивов ===
+function arraysEqual(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    const sa = [...a].sort();
+    const sb = [...b].sort();
+    return sa.every((v, i) => v === sb[i]);
+}
 
 // === ПОДСЧЁТ РЕЗУЛЬТАТА ===
 async function finishTest() {
@@ -308,33 +350,44 @@ async function finishTest() {
         let earnedPoints = 0;
 
         if (q.type === "multiple_choice") {
-            isCorrect = (ans === q.correct_index);
+            if (q.is_multi_select) {
+                const userAns = Array.isArray(ans) ? [...ans].sort() : [];
+                const correctAns = Array.isArray(q.correct_indices) ? [...q.correct_indices].sort() : [];
+                isCorrect = arraysEqual(userAns, correctAns);
+                const userText = userAns.map(i => q.options[i]).join(", ") || "(нет ответа)";
+                const correctText = correctAns.map(i => q.options[i]).join(", ");
+                detailText = `Ваш ответ: ${userText} | Правильные: ${correctText}`;
+            } else {
+                isCorrect = (ans === q.correct_index);
+                const userOpt = (ans !== undefined && ans !== null) ? q.options[ans] : "(нет ответа)";
+                detailText = `Ваш ответ: ${userOpt} | Правильный: ${q.options[q.correct_index]}`;
+            }
             earnedPoints = isCorrect ? q.points : 0;
-            const userOpt = (ans !== undefined && ans !== null) ? q.options[ans] : "(нет ответа)";
-            detailText = `Ваш ответ: ${userOpt} | Правильный: ${q.options[q.correct_index]}`;
-        } 
+        }
         else if (q.type === "text_input") {
-            if (ans && q.accepted_answers) {
+            const hasAnswer = ans !== undefined && ans !== null && String(ans).trim() !== "";
+            if (hasAnswer && q.accepted_answers && Array.isArray(q.accepted_answers)) {
                 const normalizedAns = String(ans).toLowerCase().trim();
                 isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === normalizedAns);
             }
             earnedPoints = isCorrect ? q.points : 0;
-            detailText = `Ваш ответ: ${ans || "(пусто)"} | Правильные: ${(q.accepted_answers || []).join(", ")}`;
-            
-            // Отправляем на модерацию
-            if (ans) {
+            const displayAns = hasAnswer ? String(ans).trim() : "(пусто)";
+            const correctList = (q.accepted_answers && q.accepted_answers.length > 0)
+                ? q.accepted_answers.join(", ")
+                : "(эталон не задан)";
+            detailText = `Ваш ответ: "${displayAns}" | Правильные: ${correctList}`;
+            if (hasAnswer) {
                 await submitForModeration(q, ans);
-                detailText += " | Ожидает проверки администратором";
+                detailText += " | Ожидает проверки";
             }
-        } 
+        }
         else if (q.type === "table_fill" && ans) {
             let correctCells = 0;
-            let totalTaskCells = 0; 
-            
+            let totalTaskCells = 0;
             q.rows.forEach((r, rowIndex) => {
                 if (r.cells) {
                     r.cells.forEach((cell, colIndex) => {
-                        if (cell.is_hint) return; 
+                        if (cell.is_hint) return;
                         totalTaskCells++;
                         const uniqueKey = `${q.id}_r${rowIndex}_c${colIndex}`;
                         const userVal = (ans[uniqueKey] || "").toLowerCase().trim();
@@ -346,14 +399,11 @@ async function finishTest() {
                     });
                 }
             });
-            
             if (totalTaskCells > 0) {
                 earnedPoints = Math.round((correctCells / totalTaskCells) * q.points);
                 if (correctCells === totalTaskCells) isCorrect = true;
             }
             detailText = `Верно ячеек: ${correctCells}/${totalTaskCells}`;
-            
-            // Отправляем на модерацию
             await submitForModeration(q, ans);
             detailText += " | Ожидает проверки";
         }
@@ -372,21 +422,21 @@ async function finishTest() {
 
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
     document.getElementById("score-display").innerText = `Итог: ${score} из ${maxScore} баллов (${percent}%)`;
-    
+
     const container = document.getElementById('review-list-container');
     if (container) {
-        let html = '<ul class="tasks-list">'; 
+        let html = '<ul class="tasks-list">';
         reviewItems.forEach(item => {
             let typeName = item.type === 'multiple_choice' ? "[Выбор]" : item.type === 'text_input' ? "[Текст]" : "[Таблица]";
             const statusClass = item.isCorrect ? "status-correct" : "status-wrong";
             html += `
                 <li class="tasks-item ${statusClass}">
                     <div style="flex-grow:1; padding-left: 10px;">
-                        <span class="task-type-badge">${typeName}</span> 
+                        <span class="task-type-badge">${typeName}</span>
                         <strong>${item.text}</strong>
                         <div style="margin-top:5px; font-size:13px; color:var(--text-light);">
-                            ${item.detail} <br>
-                            <span style="color:var(--accent);">Получено баллов: ${item.earned} из ${item.points}</span>
+                            ${item.detail}<br>
+                            <span style="color:var(--accent);">Получено: ${item.earned} из ${item.points}</span>
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">
@@ -405,9 +455,7 @@ async function finishTest() {
             let currentHistory = await loadUserHistory(currentUser.login);
             Object.assign(currentHistory, userAnswers);
             await saveUserHistory(currentUser.login, currentHistory);
-        } catch (e) {
-            console.error("Не удалось сохранить историю:", e);
-        }
+        } catch (e) { console.error("Не удалось сохранить историю:", e); }
     }
     showPage("results");
 }
@@ -474,18 +522,15 @@ async function deleteAccount(index) {
     try { await apiPut("users", JSON.stringify(users, null, 2)); openAccountsManager(); } catch (e) { alert("Ошибка: " + e.message); }
 }
 
+// === ВКЛАДКА ЗАДАНИЯ ===
 async function openTasksList() {
     showPage('tasks-page');
     const btnAdd = document.getElementById('btn-add-question');
-    if (currentUser && currentUser.role === 'admin') {
-        if (btnAdd) btnAdd.style.display = 'inline-block';
-    } else {
-        if (btnAdd) btnAdd.style.display = 'none';
-    }
+    if (currentUser && currentUser.role === 'admin') { if (btnAdd) btnAdd.style.display = 'inline-block'; }
+    else { if (btnAdd) btnAdd.style.display = 'none'; }
     const formContainer = document.getElementById('add-form-container');
     if (formContainer) formContainer.style.display = 'none';
 
-    // Загружаем историю И submissions параллельно
     let userHistory = {};
     let submissions = [];
     if (currentUser) {
@@ -512,40 +557,32 @@ async function loadAndRenderTasks(userHistory = {}, submissions = []) {
                 html += `<h4 class="task-category-header">${cat.name}</h4>`;
                 html += '<ul class="tasks-list">';
                 cat.questions.forEach((q, qIndexInCat) => {
-                    let typeName = q.type === 'multiple_choice' ? "[Выбор]" 
-                        : q.type === 'text_input' ? "[Текст]" : "[Таблица]";
-                    
+                    let typeName = q.type === 'multiple_choice' ? "[Выбор]" : q.type === 'text_input' ? "[Текст]" : "[Таблица]";
                     let statusClass = "";
                     const savedAns = userHistory[q.id];
-                    
                     if (savedAns !== undefined) {
                         let isCorrect = false;
-                        
                         if (q.type === 'multiple_choice') {
-                            isCorrect = (savedAns === q.correct_index);
-                        } 
-                        else if (q.type === 'text_input') {
-                            // Сначала проверяем модерацию
-                            const approvedSub = submissions.find(s => 
-                                s.questionId === q.id && 
-                                s.userId === currentUser?.login && 
-                                s.status === 'approved'
+                            if (q.is_multi_select) {
+                                const userAns = Array.isArray(savedAns) ? [...savedAns].sort() : [];
+                                const correctAns = Array.isArray(q.correct_indices) ? [...q.correct_indices].sort() : [];
+                                isCorrect = arraysEqual(userAns, correctAns);
+                            } else {
+                                isCorrect = (savedAns === q.correct_index);
+                            }
+                        } else if (q.type === 'text_input') {
+                            const approvedSub = submissions.find(s =>
+                                s.questionId === q.id && s.userId === currentUser?.login && s.status === 'approved'
                             );
                             if (approvedSub) {
                                 isCorrect = true;
                             } else if (q.accepted_answers && Array.isArray(q.accepted_answers)) {
                                 const normalizedAns = String(savedAns).toLowerCase().trim();
-                                isCorrect = q.accepted_answers.some(acc => 
-                                    acc.toLowerCase().trim() === normalizedAns
-                                );
+                                isCorrect = q.accepted_answers.some(acc => acc.toLowerCase().trim() === normalizedAns);
                             }
-                        } 
-                        else if (q.type === 'table_fill') {
-                            // Сначала проверяем модерацию
-                            const approvedSub = submissions.find(s => 
-                                s.questionId === q.id && 
-                                s.userId === currentUser?.login && 
-                                s.status === 'approved'
+                        } else if (q.type === 'table_fill') {
+                            const approvedSub = submissions.find(s =>
+                                s.questionId === q.id && s.userId === currentUser?.login && s.status === 'approved'
                             );
                             if (approvedSub) {
                                 isCorrect = true;
@@ -559,37 +596,21 @@ async function loadAndRenderTasks(userHistory = {}, submissions = []) {
                                         const userVal = (savedAns[uniqueKey] || "").toLowerCase().trim();
                                         const correctVal = (cell.value || "").toLowerCase().trim();
                                         if (correctVal === "") return;
-                                        if (userVal && (userVal === correctVal || 
-                                            userVal.includes(correctVal) || 
-                                            correctVal.includes(userVal))) {
-                                            correctCells++;
-                                        }
+                                        if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) correctCells++;
                                     });
                                 });
                                 isCorrect = (totalCells > 0 && correctCells === totalCells);
                             }
                         }
-                        
                         statusClass = isCorrect ? "status-correct" : "status-wrong";
                     }
-                    
                     html += `<li class="tasks-item ${statusClass}">`;
-                    html += `<div style="flex-grow:1; padding-left: 10px;">
-                                <span class="task-type-badge">${typeName}</span> ${q.text} 
-                             </div>`;
+                    html += `<div style="flex-grow:1; padding-left: 10px;"><span class="task-type-badge">${typeName}</span> ${q.text}</div>`;
                     html += `<div style="display:flex; align-items:center; gap:10px; padding-right: 10px;">`;
                     html += `<span class="task-points">${q.points} балл</span>`;
                     if (isAdmin) {
-                        html += `<button onclick="editQuestion(${catIndex}, ${qIndexInCat})" 
-                                         class="btn-nav" 
-                                         style="background:#ffc107; color:black; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">
-                                     Изменить
-                                 </button>`;
-                        html += `<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" 
-                                         class="btn-nav" 
-                                         style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">
-                                     Удалить
-                                 </button>`;
+                        html += `<button onclick="editQuestion(${catIndex}, ${qIndexInCat})" class="btn-nav" style="background:#ffc107; color:black; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">Изменить</button>`;
+                        html += `<button onclick="deleteQuestion('${cat.id}', ${qIndexInCat})" class="btn-nav" style="background:#d9534f; color:white; border:none; padding:4px 8px; cursor:pointer; font-size:12px; border-radius:3px;">Удалить</button>`;
                     }
                     html += `</div></li>`;
                 });
@@ -648,17 +669,26 @@ function fillSpecificFields(q) {
             div.innerHTML = `<input type="text" class="text-input mc-opt-val" value="${opt}" placeholder="Вариант"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button>`;
             list.appendChild(div);
         });
-        document.getElementById('mc-correct-index').value = q.correct_index;
-    } 
-    else if (q.type === 'text_input') {
+        const isMulti = q.is_multi_select === true;
+        const multiCheck = document.getElementById('mc-is-multi');
+        if (multiCheck) multiCheck.checked = isMulti;
+        if (isMulti) {
+            toggleMultiSelectUI();
+            const correctIndices = q.correct_indices || [];
+            correctIndices.forEach(idx => {
+                const cb = document.querySelector(`.mc-correct-check[value="${idx}"]`);
+                if (cb) cb.checked = true;
+            });
+        } else {
+            document.getElementById('mc-correct-index').value = q.correct_index || 0;
+        }
+    } else if (q.type === 'text_input') {
         document.getElementById('ti-accepted').value = (q.accepted_answers || []).join(', ');
-    } 
-    else if (q.type === 'table_fill') {
+    } else if (q.type === 'table_fill') {
         document.getElementById('tf-headers').value = (q.headers || []).join(', ');
         const rowsList = document.getElementById('tf-rows-list');
         rowsList.innerHTML = '';
         if (q.rows && q.rows[0] && q.rows[0].cells) {
-            // Новый формат
             q.rows.forEach((r, rowIdx) => {
                 const div = document.createElement('div');
                 div.className = 'tf-row-block';
@@ -670,7 +700,6 @@ function fillSpecificFields(q) {
                 rowsList.appendChild(div);
             });
         } else if (q.rows && q.rows[0] && q.rows[0].label !== undefined) {
-            // Старый формат
             q.rows.forEach(r => {
                 const div = document.createElement('div');
                 div.className = 'tf-row-block';
@@ -711,17 +740,53 @@ function toggleTaskFields() {
     const container = document.getElementById('dynamic-fields-container');
     let html = '';
     if (type === 'multiple_choice') {
-        html = `<h4>Варианты ответов</h4><div id="mc-options-list">
-            <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 1"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
-            <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 2"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
-        </div><button onclick="addMcOption()" class="btn-nav">+ Добавить вариант</button><br><br>
-        <label>Индекс правильного ответа (начинается с 0):</label><input type="number" id="mc-correct-index" value="0" min="0" class="text-input" style="width:80px;">`;
+        html = `
+            <h4>Варианты ответов</h4>
+            <div id="mc-options-list">
+                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 1"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
+                <div class="mc-option-row"><input type="text" class="text-input mc-opt-val" placeholder="Вариант 2"><button onclick="this.parentElement.remove()" class="btn-nav" style="color:red;">-</button></div>
+            </div>
+            <button onclick="addMcOption()" class="btn-nav">+ Добавить вариант</button>
+            <br><br>
+            <label style="display:block; margin-bottom:10px; font-weight:bold;">
+                <input type="checkbox" id="mc-is-multi" onchange="toggleMultiSelectUI()"> Несколько правильных вариантов
+            </label>
+            <div id="mc-correct-selection" style="display:none; padding:10px; border:1px dashed var(--border-input); border-radius:4px; background:var(--bg-input);">
+                <p style="margin-top:0; font-size:13px; color:var(--text-muted);">Отметьте правильные варианты:</p>
+                <div id="mc-correct-checkboxes"></div>
+            </div>
+            <div id="mc-single-index-block">
+                <label>Индекс правильного ответа (начинается с 0):</label>
+                <input type="number" id="mc-correct-index" value="0" min="0" class="text-input" style="width:80px;">
+            </div>
+        `;
     } else if (type === 'text_input') {
         html = `<h4>Проверка ответа</h4><label>Разрешённые ответы (через запятую):</label><input type="text" id="ti-accepted" placeholder="ответ1, ответ2" class="text-input">`;
     } else if (type === 'table_fill') {
         html = `<h4>Структура таблицы</h4><label>Заголовки колонок (через запятую):</label><input type="text" id="tf-headers" placeholder="Колонка 1, Колонка 2" class="text-input"><div id="tf-rows-list"></div><button onclick="addTfRow()" class="btn-nav">+ Добавить строку данных</button>`;
     }
     container.innerHTML = html;
+}
+
+function toggleMultiSelectUI() {
+    const isMulti = document.getElementById('mc-is-multi').checked;
+    const multiBlock = document.getElementById('mc-correct-selection');
+    const singleBlock = document.getElementById('mc-single-index-block');
+    const checkboxesContainer = document.getElementById('mc-correct-checkboxes');
+    if (isMulti) {
+        multiBlock.style.display = 'block';
+        singleBlock.style.display = 'none';
+        const opts = Array.from(document.querySelectorAll('.mc-opt-val')).map(i => i.value.trim()).filter(v => v);
+        let cbHtml = '';
+        opts.forEach((opt, idx) => {
+            cbHtml += `<label style="display:block; margin:5px 0; cursor:pointer;"><input type="checkbox" class="mc-correct-check" value="${idx}" data-opt="${opt}"> ${opt}</label>`;
+        });
+        if (opts.length === 0) cbHtml = '<p style="color:var(--text-light);">Сначала добавьте варианты ответов выше.</p>';
+        checkboxesContainer.innerHTML = cbHtml;
+    } else {
+        multiBlock.style.display = 'none';
+        singleBlock.style.display = 'block';
+    }
 }
 
 function addMcOption() {
@@ -758,10 +823,23 @@ async function saveNewQuestion() {
     try {
         if (type === 'multiple_choice') {
             const opts = Array.from(document.querySelectorAll('.mc-opt-val')).map(i => i.value.trim()).filter(v => v);
-            const correctIdx = parseInt(document.getElementById('mc-correct-index').value);
+            const isMulti = document.getElementById('mc-is-multi')?.checked;
             if (opts.length < 2) throw new Error("Нужно минимум 2 варианта");
-            if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= opts.length) throw new Error(`Неверный индекс (от 0 до ${opts.length - 1})`);
-            questionObj.options = opts; questionObj.correct_index = correctIdx;
+            questionObj.options = opts;
+            questionObj.is_multi_select = isMulti;
+            if (isMulti) {
+                const checkedBoxes = document.querySelectorAll('.mc-correct-check:checked');
+                const correctIndices = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+                if (correctIndices.length === 0) throw new Error("Выберите хотя бы один правильный вариант!");
+                questionObj.correct_indices = correctIndices.sort((a, b) => a - b);
+                delete questionObj.correct_index;
+            } else {
+                const correctIdx = parseInt(document.getElementById('mc-correct-index').value);
+                if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= opts.length) throw new Error(`Неверный индекс (от 0 до ${opts.length - 1})`);
+                questionObj.correct_index = correctIdx;
+                delete questionObj.correct_indices;
+                delete questionObj.is_multi_select;
+            }
         } else if (type === 'text_input') {
             const accStr = document.getElementById('ti-accepted').value.trim();
             if (!accStr) throw new Error("Укажите правильный ответ");
@@ -777,12 +855,12 @@ async function saveNewQuestion() {
                 const cellVals = el.querySelectorAll('.tf-cell-val');
                 const cellHints = el.querySelectorAll('.tf-cell-hint');
                 const rowData = { cells: [] };
-                for(let i=0; i<cellVals.length; i++) {
+                for (let i = 0; i < cellVals.length; i++) {
                     rowData.cells.push({ value: cellVals[i].value.trim(), is_hint: cellHints[i].checked });
                 }
-                if(rowData.cells.some(c => c.value !== "" || c.is_hint)) questionObj.rows.push(rowData);
+                if (rowData.cells.some(c => c.value !== "" || c.is_hint)) questionObj.rows.push(rowData);
             });
-            if(questionObj.rows.length === 0) throw new Error("Все строки пустые");
+            if (questionObj.rows.length === 0) throw new Error("Все строки пустые");
         }
         const data = JSON.parse(await apiGet('questions'));
         if (editingContext) {
@@ -812,14 +890,11 @@ async function saveNewQuestion() {
     }
 }
 
-// === МОДЕРАЦИЯ: ВКЛАДКА АДМИНА ===
+// === МОДЕРАЦИЯ ===
 let currentModerationFilter = 'pending';
 
 async function openModeration() {
-    if (!currentUser || currentUser.role !== 'admin') {
-        alert("Доступ только для администраторов");
-        return;
-    }
+    if (!currentUser || currentUser.role !== 'admin') { alert("Доступ только для администраторов"); return; }
     showPage('moderation-page');
     await renderModeration();
 }
@@ -827,36 +902,23 @@ async function openModeration() {
 async function renderModeration() {
     const container = document.getElementById('moderation-container');
     const subs = await loadSubmissions();
-    
-    const filtered = currentModerationFilter === 'all' 
-        ? subs 
-        : subs.filter(s => s.status === currentModerationFilter);
-    
-    if (filtered.length === 0) {
-        container.innerHTML = '<p>Нет ответов для отображения.</p>';
-        return;
-    }
-    
+    const filtered = currentModerationFilter === 'all' ? subs : subs.filter(s => s.status === currentModerationFilter);
+    if (filtered.length === 0) { container.innerHTML = '<p>Нет ответов для отображения.</p>'; return; }
     filtered.sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
         if (a.status !== 'pending' && b.status === 'pending') return 1;
         return new Date(b.timestamp) - new Date(a.timestamp);
     });
-    
     let html = '';
     filtered.forEach(sub => {
-        const statusLabel = sub.status === 'pending' ? '⏳ Ожидает' 
-            : sub.status === 'approved' ? '✓ Принят' : '✗ Отклонён';
-        
+        const statusLabel = sub.status === 'pending' ? '⏳ Ожидает' : sub.status === 'approved' ? '✓ Принят' : '✗ Отклонён';
         html += `
             <div class="moderation-card status-${sub.status}">
                 <div class="moderation-header">
                     <span><strong>${sub.userName}</strong> (${sub.userId})</span>
                     <span>${new Date(sub.timestamp).toLocaleString('ru-RU')} | ${statusLabel}</span>
                 </div>
-                <div class="moderation-question">
-                    [${sub.questionType === 'table_fill' ? 'Таблица' : 'Текст'}] ${sub.questionText}
-                </div>
+                <div class="moderation-question">[${sub.questionType === 'table_fill' ? 'Таблица' : 'Текст'}] ${sub.questionText}</div>
                 <div style="font-size:12px; color:var(--text-light); margin-bottom:5px;">Ответ ученика:</div>
                 <div class="moderation-answer">${formatAnswer(sub.answer, sub.questionType)}</div>
                 <div style="font-size:12px; color:var(--text-light); margin-bottom:5px;">Эталон:</div>
@@ -870,7 +932,6 @@ async function renderModeration() {
             </div>
         `;
     });
-    
     container.innerHTML = html;
 }
 
@@ -894,15 +955,11 @@ async function handleModeration(submissionId, status) {
 
 async function updateModerationBadge() {
     if (!currentUser || currentUser.role !== 'admin') return;
-    
     const subs = await loadSubmissions();
     const pendingCount = subs.filter(s => s.status === 'pending').length;
-    
     const badge = document.getElementById('moderation-badge');
     const link = document.getElementById('moderation-link');
-    
     if (link) link.style.display = 'block';
-    
     if (badge) {
         if (pendingCount > 0) {
             badge.innerText = pendingCount;
@@ -913,21 +970,19 @@ async function updateModerationBadge() {
     }
 }
 
-// === ПЕРЕКЛЮЧЕНИЕ ТЕМЫ ===
+// === ТЕМА ===
 function toggleTheme() {
     const isDark = document.body.classList.toggle('dark-theme');
     localStorage.setItem('biology_theme', isDark ? 'dark' : 'light');
     updateThemeButton(isDark);
 }
-
 function updateThemeButton(isDark) {
     const btn = document.getElementById('theme-toggle');
     if (btn) btn.innerText = isDark ? '☀️ Светлая тема' : '🌙 Тёмная тема';
 }
-
 function applySavedTheme() {
     const saved = localStorage.getItem('biology_theme');
-    if (saved === 'dark') { document.body.classList.add('dark-theme'); updateThemeButton(true); } 
+    if (saved === 'dark') { document.body.classList.add('dark-theme'); updateThemeButton(true); }
     else { updateThemeButton(false); }
 }
 
